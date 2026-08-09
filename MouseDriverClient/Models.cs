@@ -184,8 +184,8 @@ namespace MouseDriverClient
     /// </summary>
     public class MacroWorkspace
     {
-        public byte Method = 0x01;        // 播放方式：0x01=循环次数 0x00=任意键停止 0x02=按住循环（本机固件实测语义）
-        public byte LoopCount = 1;        // 循环次数（仅播放方式=循环次数/0x01 时生效；最小为 1，本机固件实测 0 会被 clamp 为 1）
+        public byte Method = 0x00;        // 播放方式：0x00=循环次数 0x01=任意键停止 0x02=按住循环（HID协议逆向报告.md 3.6 节，实机验证）
+        public byte LoopCount = 1;        // 循环次数（仅播放方式=循环次数/0x00 时生效；最小为 1，本机固件实测 0 会被 clamp 为 1）
         public List<MacroAction> Actions = new();
     }
 
@@ -217,7 +217,7 @@ namespace MouseDriverClient
     public class MacroConfig
     {
         public byte MacroId = 0x01;            // 宏编号 1..6
-        public byte Method = 0x01;             // 播放方式：0x01=循环次数 0x00=任意键停止 0x02=按住循环（本机固件实测语义）
+        public byte Method = 0x00;             // 播放方式：0x00=循环次数 0x01=任意键停止 0x02=按住循环（HID协议逆向报告.md 3.6 节，实机验证）
         public byte RecordMode = 0x01;         // 延迟录制模式：0x01=默认延迟 0x07=录制延迟
         public List<MacroAction> Actions = new();
 

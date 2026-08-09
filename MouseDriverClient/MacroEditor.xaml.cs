@@ -84,13 +84,13 @@ namespace MouseDriverClient
         private byte GetMethod()
         {
             // Tag 在 XAML 中可能为 int 也可能为 string，统一解析为字节再映射。
-            // 映射：循环次数=0x01、任意键停止=0x00、按住循环=0x02（本机固件实测语义）。
+            // 协议语义（HID协议逆向报告.md 3.6 节）：0x00=循环次数、0x01=任意键停止、0x02=按住循环。
             if (CmbMacroMethod.SelectedItem is ComboBoxItem ci)
             {
                 byte v = TagToByte(ci.Tag);
                 if (v == 0x00 || v == 0x01 || v == 0x02) return v;
             }
-            return 0x01; // 默认：循环次数
+            return 0x00; // 默认：循环次数
         }
 
         private static byte TagToByte(object tag)
