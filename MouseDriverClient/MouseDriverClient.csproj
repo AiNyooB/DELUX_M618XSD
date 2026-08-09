@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- 应用版本：启动日志会打印 v{Version} + exe 构建时间戳，用于区分新旧构建产物（v0.1.2） -->
+    <Version>0.1.2</Version>
     <!-- 通信层直接 P/Invoke 系统 hid.dll，不依赖 32 位的 hiddriver_ms_4.dll，故可保持 x64 -->
     <PlatformTarget>x64</PlatformTarget>
     <!-- 默认框架依赖单文件发布（目标机需 .NET 8 Desktop Runtime）；需要自包含时用命令行参数覆盖，详见 README.md 构建节 -->

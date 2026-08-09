@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -205,6 +207,17 @@ namespace MouseDriverClient
             set => Set(ref _logText, value);
         }
 
+        /// <summary>读取当前运行 exe 的构建时间戳（单文件发布下 Assembly.Location 为空，需用 Environment.ProcessPath）。</summary>
+        private static string ExeBuildStamp()
+        {
+            try
+            {
+                var path = Environment.ProcessPath;
+                return string.IsNullOrEmpty(path) ? "未知" : File.GetLastWriteTime(path).ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            catch { return "未知"; }
+        }
+
         public void Log(string msg)
         {
             var line = $"[{DateTime.Now:HH:mm:ss}] {msg}";
@@ -240,6 +253,9 @@ namespace MouseDriverClient
 
         public MainViewModel()
         {
+            // 启动日志打印程序版本 + exe 构建时间戳，用于区分新旧构建产物（旧 exe 会显示旧版本号/时间戳）
+            Log($"===== MouseDriverClient v{Assembly.GetExecutingAssembly().GetName().Version}（exe 构建时间 {ExeBuildStamp()}）=====");
+
             // 捕获主线程 Dispatcher，供后台线程（Task.Run 连接逻辑）安全回写日志/属性
             _uiDispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
 
