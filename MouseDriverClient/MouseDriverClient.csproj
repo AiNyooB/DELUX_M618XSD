@@ -8,9 +8,9 @@
     <UseWPF>true</UseWPF>
     <!-- 通信层直接 P/Invoke 系统 hid.dll，不依赖 32 位的 hiddriver_ms_4.dll，故可保持 x64 -->
     <PlatformTarget>x64</PlatformTarget>
-    <!-- 单文件发布（WPF 必须开启 IncludeNativeLibrariesForSelfExtract） -->
+    <!-- 默认框架依赖单文件发布（目标机需 .NET 8 Desktop Runtime）；需要自包含时用命令行参数覆盖，详见 README.md 构建节 -->
     <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
+    <SelfContained>false</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>

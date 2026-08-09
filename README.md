@@ -34,14 +34,16 @@
 环境要求：.NET SDK 8.0（Windows 或 Linux 交叉编译均需 `EnableWindowsTargeting`）。
 
 ```bash
-# 框架依赖发布（体积小，目标机需 .NET 8 Desktop Runtime）
+# 框架依赖发布（体积小，目标机需 .NET 8 Desktop Runtime）—— 默认发布方式
 dotnet publish MouseDriverClient -c Release -r win-x64 --self-contained false \
-  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true
+  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true -o "publish-self-fd"
 
 # 自包含单文件发布（目标机免安装运行时，体积 ~155MB）
 dotnet publish MouseDriverClient -c Release -r win-x64 --self-contained true \
-  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true
+  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true -o "publish-self"
 ```
+
+> 默认框架依赖单文件发布：`MouseDriverClient.csproj` 中 `SelfContained=false`，不带 `--self-contained` 参数执行即为此模式。需要自包含时用 `--self-contained true` 覆盖。
 
 ## 安全须知（开发/实测必读）
 
