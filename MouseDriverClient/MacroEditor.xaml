@@ -44,6 +44,9 @@
                     <TextBlock Text="每步延迟(ms):" VerticalAlignment="Center" Margin="12,0,4,0"/>
                     <TextBox x:Name="TxtDelayMs" Width="60" Text="100" VerticalContentAlignment="Center"/>
                 </StackPanel>
+                <TextBlock x:Name="TxtDelayHint" VerticalAlignment="Center" Margin="0,0,0,4" Foreground="Gray" FontSize="11">
+                    <Run Text="PC 输入 = 你填的毫秒；设备实际 = 固件解码值 max(10ms, byte×5ms)，只读展示。"/>
+                </TextBlock>
                 <ListBox x:Name="LstMacroActions" Height="120" Background="White"/>
             </StackPanel>
         </GroupBox>

@@ -22,6 +22,12 @@ namespace MouseDriverClient
             VM = new MainViewModel();
             DataContext = VM;
             MacroEditor.RecordModeChanged = (rec) => VM.RecordMode = rec; // 宏编辑页切换延迟模式即同步 VM
+            // 宏内容（动作/延迟）编辑后即时同步进 VM.Macros，编辑即生效，无需手动点「保存宏」
+            MacroEditor.OnMacroChanged = (id) =>
+            {
+                VM.Macros[id] = MacroEditor.Store[id];
+                VM.RefreshKeyMacroOptions();
+            };
             // 切换宏 ID 时把该宏已保存的循环次数回填到循环次数输入框
             MacroEditor.MacroIdChanged = (id) =>
             {

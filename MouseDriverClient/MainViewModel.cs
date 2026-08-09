@@ -483,6 +483,9 @@ namespace MouseDriverClient
             // 非轻量序列则先同步当前 DPI 面板值（完整序列）
             if (!ButtonLightweight) ApplyDpi();
             Send(BtnCfg.ToBytes());
+            // 官方时序要求每步间隔 0.2s：0x08 整表覆写后必须停顿，
+            // 让固件消化完按键表再接收 0x09 宏数据，否则宏可能不落盘。
+            Thread.Sleep(200);
             // 宏数据：按键表里标记为「宏」的条目，按各自宏 ID 补发宏内容
             SendMacroDataIfAny();
         }
@@ -502,8 +505,15 @@ namespace MouseDriverClient
             {
                 if (!Macros.TryGetValue(mid, out var ws) || ws.Actions.Count == 0) continue; // 未录制 -> 不触碰设备原有宏
                 byte recordMode = RecordMode ? (byte)0x07 : (byte)0x01;
+                // 发送前打出实际要编码的动作明细，便于核对（改没改、改对没改对一目了然）
+                for (int i = 0; i < ws.Actions.Count; i++)
+                {
+                    var a = ws.Actions[i];
+                    byte flag = a.ToFlag();
+                    Log($"  宏{mid} 动作{i + 1}: code=0x{a.Code:X2} {(a.Press ? "按下" : "释放")} flag=0x{flag:X2} delay={a.DelayMs}ms");
+                }
                 var chunks = MacroConfig.BuildMacroChunks(mid, ws.Method, recordMode, ws.Actions, ws.LoopCount);
-                Log($"写入 0x09×3（宏 ID={mid}，按键数={ws.Actions.Count / 2}）");
+                Log($"写入 0x09×3（宏 ID={mid}，按键数={ws.Actions.Count / 2}，方法=0x{ws.Method:X2}，录制模式={(RecordMode ? "录制延迟" : "默认延迟")}）");
                 foreach (var ch in chunks)
                 {
                     Send(ch);

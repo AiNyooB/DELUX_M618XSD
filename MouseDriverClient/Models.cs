@@ -222,15 +222,26 @@ namespace MouseDriverClient
         public List<MacroAction> Actions = new();
 
         /// <summary>延迟编码（反汇编 0x004182B0 确认，1:1 移植 macro_generator.py）：
-        /// delay <= 1270ms: encoded = round(delay_ms/100)，最小 1
+        /// delay &lt;= 1270ms: encoded = round(delay_ms/100)，最小 1
         /// delay &gt; 1270ms: encoded = round((delay_ms%200)/100)，最小 1
-        /// 注意：&lt;50ms 的延迟全部编码为 1（无法区分 10ms/30ms）。</summary>
+        /// 注意：&lt;150ms 的延迟全部编码为 1（无法区分 10/30/100ms）。
+        /// ⚠️ 设备端实际解码为 max(10ms, byte×5ms)（2026-08-09 实测），非 byte×100ms。</summary>
         public static int EncodeDelay(int delayMs)
         {
             int encoded = delayMs <= 1270
                 ? (int)(delayMs / 100.0 + 0.5)
                 : (int)((delayMs % 200) / 100.0 + 0.5);
             return Math.Max(1, encoded);
+        }
+
+        /// <summary>PC 端输入延迟(ms) → 设备实际生效延迟(ms)，用于只读展示。
+        /// 链路：设备解码 byte = EncodeDelay(pcMs)，实际 = max(10ms, byte×5ms)。
+        /// 例：PC 输入 1000ms → byte=round(1000/100)=10 → 实际=max(10,50)=50ms。
+        /// 注：PC 输入即用户填写的值，不做任何换算直接存 MacroAction.DelayMs。</summary>
+        public static int PcInputToActualMs(int pcMs)
+        {
+            int b = EncodeDelay(pcMs);
+            return Math.Max(10, b * 5);
         }
 
         /// <summary>由动作序列生成 0x09×3 三块，复用已实机验证的编码。</summary>

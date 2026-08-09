@@ -59,7 +59,8 @@ HID_KEYBOARD = {
 # 编码公式（反汇编 0x004182B0 确认）:
 #   delay ≤ 1270ms: encoded = (int)(delay_ms / 100.0 + 0.5), 最小 1
 #   delay > 1270ms: encoded = (int)((delay_ms % 200) / 100.0 + 0.5), 最小 1
-# 注意: 所有 < 50ms 的延迟都被编码为 1（最小值），无法区分 10ms 和 30ms
+# 注意: 所有 < 150ms 的延迟(0-149ms)都被编码为 1（最小值），无法区分 10ms/30ms/100ms 等
+# ⚠️ 设备端实际解码为 max(10ms, byte×5ms)（2026-08-09 实测），非 byte×100ms
 FLAG_PRESS = 0x81  # 按下, 延迟编码=1（对应 < 50ms 或 50-99ms 的延迟）
 FLAG_RELEASE = 0x00  # 释放, 延迟编码=0
 

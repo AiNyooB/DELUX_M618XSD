@@ -21,6 +21,10 @@ namespace MouseDriverClient
         /// <summary>切换宏 ID 时回调（由主窗口注入），用于同步循环次数等外部输入控件。</summary>
         public Action<byte>? MacroIdChanged { get; set; }
 
+        /// <summary>宏内容（动作/延迟/方法）变更后回调（由主窗口注入），用于把最新工作区即时同步进 VM.Macros，
+        /// 避免「编辑了延迟却忘了点保存宏」导致发出去的是旧数据。</summary>
+        public Action<byte>? OnMacroChanged { get; set; }
+
         private bool _showMacroIdSelector = true;
         /// <summary>是否在控件内显示「宏 ID」下拉（按键页有自己的宏 ID 下拉时设为 false）。</summary>
         public bool ShowMacroIdSelector
@@ -69,6 +73,14 @@ namespace MouseDriverClient
             return Store[id];
         }
 
+        /// <summary>把当前宏工作区即时同步进 VM.Macros（与保存宏按钮等价的引用桥接），
+        /// 使编辑动作/延迟后立即生效，无需手动再点「保存宏」。</summary>
+        private void SyncToVm()
+        {
+            byte id = CurrentId;
+            OnMacroChanged?.Invoke(id);
+        }
+
         private void CmbMacroId_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             EnsureCurrent();
@@ -100,11 +112,18 @@ namespace MouseDriverClient
             return 0xFF;
         }
 
-        /// <summary>读取「每步延迟(ms)」全局框；无效时返回 0（该条不默认带延迟）。</summary>
+        /// <summary>读取「每步延迟(ms)」全局框；无效时返回 0（该条不默认带延迟）。
+        /// 用户填的值即 PC 端输入延迟（直接存 MacroAction.DelayMs，不做任何换算）。</summary>
         private int GetGlobalDelayMs()
         {
             if (int.TryParse(TxtDelayMs.Text, out int ms) && ms >= 1) return ms;
             return 0;
+        }
+
+        /// <summary>当前「每步延迟」框的 PC 端输入 ms（用户填的就是 PC 输入，原样返回）。</summary>
+        private int GetActualDelayPcMs()
+        {
+            return GetGlobalDelayMs();
         }
 
         private void BtnMacroKey_Click(object sender, RoutedEventArgs e)
@@ -113,7 +132,7 @@ namespace MouseDriverClient
                 "输入按键名（A-Z / 0-9 / F1-F12 / LCLK,RCLK,MCLK；可空格分隔多个）", "录制宏按键", "A");
             if (string.IsNullOrWhiteSpace(input)) return;
             var ws = EnsureCurrent();
-            int defDelay = GetGlobalDelayMs();
+            int defDelay = GetActualDelayPcMs();
             foreach (var part in input.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 byte code = UiHelper.KeyNameToCode(part);
@@ -126,9 +145,10 @@ namespace MouseDriverClient
                 ws.Actions.Add(new MacroAction { Code = code, Press = false, DelayMs = defDelay }); // 释放
             }
             Refresh();
+            SyncToVm();
         }
 
-        /// <summary>编辑选中动作的延迟：弹框输入该动作后的延迟(ms)，留空/0 表示清除延迟。</summary>
+        /// <summary>编辑选中动作的延迟：弹框输入「PC 端延迟(ms)」（0 表示无延迟），原样存入 DelayMs。</summary>
         private void BtnEditDelay_Click(object sender, RoutedEventArgs e)
         {
             var ws = EnsureCurrent();
@@ -139,24 +159,20 @@ namespace MouseDriverClient
                 return;
             }
             var a = ws.Actions[idx];
-            string cur = a.DelayMs > 0 ? a.DelayMs.ToString() : "";
+            // 当前 PC 输入值，便于用户参考（延迟即用户填的 PC 端 ms）
+            int curPc = a.DelayMs;
             var input = UiHelper.InputBox(Window.GetWindow(this),
-                "输入该动作后的延迟(ms)，0 表示无延迟", "编辑延迟", cur);
+                "输入 PC 端延迟(ms)，0 表示无延迟", "编辑延迟（PC 输入）", curPc.ToString());
             if (input == null) return; // 取消
-            int newMs;
-            if (string.IsNullOrWhiteSpace(input.Trim()))
-            {
-                Logger?.Invoke("⚠ 延迟值无效：请输入正整数毫秒或 0");
-                return;
-            }
-            else if (!int.TryParse(input.Trim(), out newMs) || newMs < 0)
+            if (!int.TryParse(input.Trim(), out int pcMs) || pcMs < 0)
             {
                 Logger?.Invoke("⚠ 延迟值无效：请输入非负整数毫秒");
                 return;
             }
-            a.DelayMs = newMs;
+            a.DelayMs = pcMs; // PC 输入原样存
             Refresh();
-            Logger?.Invoke($"✓ 已更新第 {idx + 1} 条延迟为 {newMs}ms");
+            SyncToVm();
+            Logger?.Invoke($"✓ 已更新第 {idx + 1} 条，PC 输入延迟={pcMs}ms（设备实际≈{MacroConfig.PcInputToActualMs(pcMs)}ms）");
         }
 
         private void BtnMacroDel_Click(object sender, RoutedEventArgs e)
@@ -172,6 +188,7 @@ namespace MouseDriverClient
             if (idx < ws.Actions.Count) LstMacroActions.SelectedIndex = idx; // 保持选中下一条
             else if (ws.Actions.Count > 0) LstMacroActions.SelectedIndex = ws.Actions.Count - 1;
             Refresh();
+            SyncToVm();
         }
 
         private void BtnMacroClear_Click(object sender, RoutedEventArgs e)
@@ -179,6 +196,7 @@ namespace MouseDriverClient
             var ws = EnsureCurrent();
             ws.Actions.Clear();
             Refresh();
+            SyncToVm();
         }
 
         private void BtnMacroDelay_Click(object sender, RoutedEventArgs e)
@@ -189,11 +207,13 @@ namespace MouseDriverClient
                 Logger?.Invoke("⚠ 延迟值无效：请输入正整数毫秒（1-65535）");
                 return;
             }
-            // 延迟作为一个虚拟动作插入：Code=0, Press=false, DelayMs=ms
-            // 生成器遇到 Code=0 时只写 flag 的延迟位、keycode 填 0（设备按空操作+延迟处理）。
-            ws.Actions.Add(new MacroAction { Code = 0x00, Press = false, DelayMs = ms });
+            // 自由框即 PC 端输入延迟(ms)，原样作为虚拟延迟动作插入（Code=0, Press=false）。
+            // 生成器遇 Code=0 只写延迟位、keycode 填 0。
+            int pcMs = ms;
+            ws.Actions.Add(new MacroAction { Code = 0x00, Press = false, DelayMs = pcMs });
             Refresh();
-            Logger?.Invoke($"✓ 已插入延迟 {ms}ms");
+            SyncToVm();
+            Logger?.Invoke($"✓ 已插入延迟（PC 输入={ms}ms，设备实际≈{MacroConfig.PcInputToActualMs(ms)}ms）");
         }
 
         /// <summary>外部联动：把 VM 的 RecordMode 同步到本控件下拉（默认延迟/录制延迟）。</summary>
@@ -229,7 +249,10 @@ namespace MouseDriverClient
             foreach (var a in ws.Actions)
             {
                 string kind = a.Press ? "按下" : "释放";
-                string delay = $" 延迟={a.DelayMs}ms";
+                // 显示：PC 端输入 ms（用户填的值）+ 设备实际生效延迟（代码端解码，只读）
+                string delay = a.DelayMs <= 0
+                    ? " 无延迟"
+                    : $" 延迟(PC输入)={a.DelayMs}ms 设备实际≈{MacroConfig.PcInputToActualMs(a.DelayMs)}ms";
                 LstMacroActions.Items.Add($"{i++}. code=0x{a.Code:X2} {kind}{delay}");
             }
         }
