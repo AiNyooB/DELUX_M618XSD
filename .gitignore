@@ -72,6 +72,16 @@
 **/.mypy_cache/
 **/.ruff_cache/
 
+# .NET
+**/bin/
+**/obj/
+**/publish*/
+**/Debug/
+**/Release/
+**/artifacts/
+*.user
+*.suo
+
 # Java
 *.class
 *.jar

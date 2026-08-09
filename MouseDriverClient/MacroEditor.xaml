@@ -1,0 +1,51 @@
+<UserControl x:Class="MouseDriverClient.MacroEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:MouseDriverClient"
+             mc:Ignorable="d"
+             d:DesignHeight="300" d:DesignWidth="420">
+    <StackPanel>
+        <Grid x:Name="RowMacroId" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="宏 ID:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox x:Name="CmbMacroId" Grid.Column="1" Width="56" SelectedIndex="0">
+                <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/>
+                <ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/>
+            </ComboBox>
+            <TextBlock Grid.Column="2" Text="播放:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+            <ComboBox x:Name="CmbMacroMethod" Grid.Column="3" Width="140" SelectedIndex="0">
+                <ComboBoxItem Content="循环次数" Tag="1"/>
+                <ComboBoxItem Content="任意键停止" Tag="0"/>
+                <ComboBoxItem Content="按住循环" Tag="2"/>
+            </ComboBox>
+        </Grid>
+        <GroupBox Header="动作序列（每个按键自动加 按下/释放 两条；仅键盘。延迟可选）">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <Button x:Name="BtnMacroKey" Content="+ 键盘" Click="BtnMacroKey_Click" Padding="8,4" Margin="0,0,6,0"/>
+                    <Button x:Name="BtnMacroDelay" Content="插入延迟" Click="BtnMacroDelay_Click" Padding="8,4" Margin="0,0,6,0"/>
+                    <Button x:Name="BtnEditDelay" Content="编辑延迟" Click="BtnEditDelay_Click" Padding="8,4" Margin="0,0,6,0"/>
+                    <Button x:Name="BtnMacroDel" Content="删除选中" Click="BtnMacroDel_Click" Padding="8,4" Margin="0,0,6,0"/>
+                    <Button x:Name="BtnMacroClear" Content="清空" Click="BtnMacroClear_Click" Padding="8,4"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <TextBlock Text="延迟模式:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="CmbRecordMode" Width="100" SelectedIndex="0" SelectionChanged="CmbRecordMode_SelectionChanged">
+                        <ComboBoxItem Content="默认延迟" Tag="0"/>
+                        <ComboBoxItem Content="录制延迟" Tag="1"/>
+                    </ComboBox>
+                    <TextBlock Text="每步延迟(ms):" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                    <TextBox x:Name="TxtDelayMs" Width="60" Text="100" VerticalContentAlignment="Center"/>
+                </StackPanel>
+                <ListBox x:Name="LstMacroActions" Height="120" Background="White"/>
+            </StackPanel>
+        </GroupBox>
+    </StackPanel>
+</UserControl>
