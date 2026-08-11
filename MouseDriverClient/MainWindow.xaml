@@ -90,8 +90,7 @@
         <GroupBox Grid.Row="1" Header="设备">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="VID: 0x1D57   PID: 0xFA60   (2.4G Wireless Device)" FontWeight="SemiBold"/>
-                <Button x:Name="BtnWake" Content="唤醒" Command="{Binding WakeCmd}" Margin="16,0,0,0" IsEnabled="{Binding IsConnected}"/>
-                <Button x:Name="BtnFactory" Content="复位程序配置" ToolTip="仅清空本程序内存中的配置副本，不触发设备掉电/硬件复位；所用默认值为软件推断，未经抓包证实，未必等于设备真出厂值" Click="BtnFactory_Click" Margin="8,0,0,0"/>
+                <Button x:Name="BtnFactory" Content="复位程序配置" ToolTip="仅清空本程序内存中的配置副本，不触发设备掉电/硬件复位；所用默认值为软件推断，未经抓包证实，未必等于设备真出厂值" Click="BtnFactory_Click" Margin="16,0,0,0"/>
                 <Button x:Name="BtnExport" Content="导出配置" Click="BtnExport_Click" Margin="8,0,0,0"/>
                 <Button x:Name="BtnImport" Content="导入配置" Click="BtnImport_Click" Margin="8,0,0,0"/>
             </StackPanel>

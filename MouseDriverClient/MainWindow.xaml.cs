@@ -70,7 +70,6 @@ namespace MouseDriverClient
         private void NavLightPower_Click(object s, RoutedEventArgs e) => ShowPage("lightpower");
         private void NavRate_Click(object s, RoutedEventArgs e) => ShowPage("rate");
         private void NavBattery_Click(object s, RoutedEventArgs e) => ShowPage("battery");
-        private void NavAll_Click(object s, RoutedEventArgs e) => VM.ApplyAll();
         #endregion
 
         #region DPI 页

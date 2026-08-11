@@ -179,8 +179,9 @@ namespace MouseDriverClient
 
     /// <summary>
     /// 单个宏 ID 的工作区（按宏 ID 索引，按键页/宏页共用同一份 Store）。
-    /// Actions 每个元素为 {code, flag} 对：当前仅支持键盘按键，flag 仅 bit0（按下置位）有效。
-    /// ⚠️ 宏编辑功能尚不完善：延时、选中删除、鼠标键录制等未实现，请勿依赖。
+    /// Actions 每个元素为 {code, flag} 对：当前仅支持键盘按键，flag 的 bit7=按下标志、bits0-6=延迟编码。
+    /// 已实现：键盘键录制、延迟编辑/插入、选中删除、清空、3 种播放方式、循环次数。
+    /// 尚未实现（见 三阶段计划文档.md）：鼠标动作（左/右/中键）、实时录制、宏列表命名管理、指令上移/下移、宏导入/导出。
     /// </summary>
     public class MacroWorkspace
     {

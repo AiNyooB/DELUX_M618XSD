@@ -242,13 +242,11 @@ namespace MouseDriverClient
 
         #region 命令
         public RelayCommand ConnectCmd { get; }
-        public RelayCommand ApplyAllCmd { get; }
         public RelayCommand ApplyLightCmd { get; }
         public RelayCommand ApplyRateCmd { get; }
         public RelayCommand ApplyDpiCmd { get; }
         public RelayCommand ApplyButtonCmd { get; }
         public RelayCommand SwitchLevelCmd { get; }
-        public RelayCommand RecoverLightCmd { get; }
         #endregion
 
         public MainViewModel()
@@ -282,13 +280,11 @@ namespace MouseDriverClient
                     catch (Exception ex) { Log("连接异常: " + ex.Message); }
                 });
             });
-            ApplyAllCmd = new RelayCommand(_ => ApplyAll());
             ApplyLightCmd = new RelayCommand(_ => ApplyLight());
             ApplyRateCmd = new RelayCommand(_ => ApplyRate());
             ApplyDpiCmd = new RelayCommand(_ => ApplyDpi());
             ApplyButtonCmd = new RelayCommand(_ => ApplyButton());
             SwitchLevelCmd = new RelayCommand(p => SwitchLevel(System.Convert.ToInt32(p)));
-            RecoverLightCmd = new RelayCommand(_ => RecoverLight());
         }
 
         #region 设备事件
@@ -430,14 +426,6 @@ namespace MouseDriverClient
             Send(Light.ToBytes());
         }
 
-        // 恢复灯光：用 light_recovery.py 的已知良好载荷（0x05 灯光/呼吸/速度）
-        public void RecoverLight()
-        {
-            byte[] payload = { 0x05, 0x0F, 0x01, 0x83, 0x05, 0x98, 0x00, 0x00, 0xFF, 0x02, 0x03, 0x00, 0x00, 0x00, 0x00 };
-            Log("恢复灯光(0x05)...");
-            Send(payload);
-        }
-
         // 应用回报率（0x06），必须与 0x0C 唤醒同发
         public void ApplyRate()
         {
@@ -522,19 +510,6 @@ namespace MouseDriverClient
             }
         }
 
-        // 应用全部：0x0C + 0x04 + 0x05 + 0x06 + 0x08 + 0x09×N
-        public void ApplyAll()
-        {
-            Log("===== 应用全部 =====");
-            Send(WakeReport);
-            ApplyDpi();
-            ApplyLight();
-            ApplyRate();
-            ApplyButton();
-            // 宏数据：按键表里标记为「宏」的条目，按各自宏 ID 补发宏内容
-            SendMacroDataIfAny();
-            Log("===== 完成 =====");
-        }
         #endregion
 
         public void Dispose()
