@@ -5,18 +5,17 @@
 
     <ScrollViewer Padding="24">
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="参数设置" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="参数设置" Style="{DynamicResource PageTitleTextStyle}" />
             <TextBlock Text="设置灯光效果与电源管理，兼顾个性与续航。"
-                       Foreground="{DynamicResource SubForegroundBrush}"
+                       Style="{DynamicResource PageSubtitleTextStyle}"
                        Margin="0,4,0,16" />
 
             <Border Style="{DynamicResource CardStyle}">
                 <StackPanel>
                     <TextBlock Text="&#xE827;" Style="{DynamicResource IconStyle}" />
-                    <TextBlock Text="参数设置即将开放" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,4"
-                               Foreground="{DynamicResource ForegroundBrush}" />
+                    <TextBlock Text="参数设置即将开放" Style="{DynamicResource CardTitleTextStyle}" Margin="0,12,0,4" />
                     <TextBlock Text="本模块将在「灯光 / 电源」阶段接入：灯光模式与休眠时间（电源操作为风险项，会有明确提示）。"
-                               TextWrapping="Wrap" Foreground="{DynamicResource SubForegroundBrush}" />
+                               Style="{DynamicResource CardDescriptionTextStyle}" />
                 </StackPanel>
             </Border>
         </StackPanel>

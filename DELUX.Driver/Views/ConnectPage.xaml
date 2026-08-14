@@ -15,10 +15,10 @@
         </Grid.RowDefinitions>
 
         <!-- 图片区：高度自适应，最大 MaxHeight 软上限；Image 等比且仅缩小不放大（最大 100% 原图） -->
-        <Border Grid.Row="0" CornerRadius="12" Padding="12" Margin="48,0,48,12" HorizontalAlignment="Center"
+        <Border Grid.Row="0" CornerRadius="{DynamicResource OverlayCornerRadius}" Padding="12" Margin="48,0,48,12" HorizontalAlignment="Center"
                 MaxHeight="420"
-                Background="{DynamicResource CardBackgroundBrush}"
-                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1">
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
             <Image Source="{Binding AppearanceImageUri}" Stretch="Uniform"
                    StretchDirection="DownOnly"
                    HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -50,7 +50,7 @@
 
             <!-- 副说明 -->
             <TextBlock TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,8,0,0"
-                       Foreground="{DynamicResource SubForegroundBrush}" FontSize="13">
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Text" Value="驱动无法识别蓝牙模式连接，请使用 2.4G 接收器或数据线" />
@@ -68,13 +68,14 @@
                          Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
 
             <!-- 连接失败原因（只含错误文案 + 打开任务管理器，不含重新识别） -->
-            <Border Margin="0,18,0,0" Padding="12,10" CornerRadius="8"
-                    Background="#FDECEA" Visibility="{Binding ConnectErrorVisible, Converter={StaticResource BoolToVis}}">
+            <Border Margin="0,18,0,0" Style="{DynamicResource ErrorBannerStyle}"
+                    Visibility="{Binding ConnectErrorVisible, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
                     <TextBlock Text="{Binding ConnectErrorText}" TextWrapping="Wrap"
-                               Foreground="#B00020" FontSize="13" FontWeight="SemiBold" />
+                               Style="{DynamicResource ErrorBannerTextStyle}" />
                     <Button Content="打开任务管理器" Command="{Binding OpenTaskManagerCmd}"
-                            Padding="12,6" Margin="0,8,0,0"
+                            Style="{DynamicResource TextButtonStyle}"
+                            Margin="0,8,0,0"
                             Visibility="{Binding ShowOpenTaskManager, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
             </Border>

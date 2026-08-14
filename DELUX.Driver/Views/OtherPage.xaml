@@ -5,27 +5,26 @@
 
     <ScrollViewer Padding="24">
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="其他设置" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="其他设置" Style="{DynamicResource PageTitleTextStyle}" />
             <TextBlock Text="恢复出厂设置、固件与设备信息等。"
-                       Foreground="{DynamicResource SubForegroundBrush}"
+                       Style="{DynamicResource PageSubtitleTextStyle}"
                        Margin="0,4,0,16" />
 
             <Border Style="{DynamicResource CardStyle}">
                 <StackPanel>
                     <TextBlock Text="&#xE713;" Style="{DynamicResource IconStyle}" />
-                    <TextBlock Text="其他设置即将开放" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,4"
-                               Foreground="{DynamicResource ForegroundBrush}" />
+                    <TextBlock Text="其他设置即将开放" Style="{DynamicResource CardTitleTextStyle}" Margin="0,12,0,4" />
                     <TextBlock Text="本模块将在「其他设置」阶段接入：一键恢复出厂默认、查看设备信息。"
-                               TextWrapping="Wrap" Foreground="{DynamicResource SubForegroundBrush}" />
+                               Style="{DynamicResource CardDescriptionTextStyle}" />
                 </StackPanel>
             </Border>
 
             <!-- 产品外观：白 / 黑 / 蓝（默认白色），本地设置，不写入设备 -->
             <Border Style="{DynamicResource CardStyle}" Margin="0,16,0,0">
                 <StackPanel>
-                    <TextBlock Text="产品外观" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="产品外观" Style="{DynamicResource CardTitleTextStyle}" />
                     <TextBlock Text="选择鼠标示意图的配色，仅影响软件内的展示效果。"
-                               TextWrapping="Wrap" Foreground="{DynamicResource SubForegroundBrush}"
+                               Style="{DynamicResource CardDescriptionTextStyle}"
                                Margin="0,4,0,16" />
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -39,12 +38,12 @@
                                 Background="Transparent">
                             <Border.Style>
                                 <Style TargetType="Border">
-                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                    <Setter Property="BorderThickness" Value="1.5" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                                    <Setter Property="BorderThickness" Value="{DynamicResource ControlStrokeThickness}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Appearance}" Value="White">
-                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                            <Setter Property="BorderThickness" Value="2.5" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                            <Setter Property="BorderThickness" Value="{DynamicResource SelectionStrokeThickness}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -53,13 +52,13 @@
                                     Command="{Binding SetAppearanceCmd}" CommandParameter="white"
                                     Cursor="Hand">
                                 <StackPanel>
-                                    <Border Height="64" CornerRadius="6"
-                                            Background="{DynamicResource CardBackgroundBrush}">
+                                    <Border Height="64" CornerRadius="{DynamicResource ImageCornerRadius}"
+                                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
                                         <Image Source="pack://application:,,,/Assets/m618xsd_white_top.png"
                                                Stretch="Uniform" Margin="8" />
                                     </Border>
                                     <TextBlock Text="白色" HorizontalAlignment="Center" Margin="0,8,0,0"
-                                               Foreground="{DynamicResource ForegroundBrush}" />
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                 </StackPanel>
                             </Button>
                         </Border>
@@ -69,12 +68,12 @@
                                 Background="Transparent">
                             <Border.Style>
                                 <Style TargetType="Border">
-                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                    <Setter Property="BorderThickness" Value="1.5" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                                    <Setter Property="BorderThickness" Value="{DynamicResource ControlStrokeThickness}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Appearance}" Value="Black">
-                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                            <Setter Property="BorderThickness" Value="2.5" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                            <Setter Property="BorderThickness" Value="{DynamicResource SelectionStrokeThickness}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -83,13 +82,13 @@
                                     Command="{Binding SetAppearanceCmd}" CommandParameter="black"
                                     Cursor="Hand">
                                 <StackPanel>
-                                    <Border Height="64" CornerRadius="6"
-                                            Background="{DynamicResource CardBackgroundBrush}">
+                                    <Border Height="64" CornerRadius="{DynamicResource ImageCornerRadius}"
+                                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
                                         <Image Source="pack://application:,,,/Assets/m618xsd_black_top.png"
                                                Stretch="Uniform" Margin="8" />
                                     </Border>
                                     <TextBlock Text="黑色" HorizontalAlignment="Center" Margin="0,8,0,0"
-                                               Foreground="{DynamicResource ForegroundBrush}" />
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                 </StackPanel>
                             </Button>
                         </Border>
@@ -99,12 +98,12 @@
                                 Background="Transparent">
                             <Border.Style>
                                 <Style TargetType="Border">
-                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                    <Setter Property="BorderThickness" Value="1.5" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                                    <Setter Property="BorderThickness" Value="{DynamicResource ControlStrokeThickness}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Appearance}" Value="Blue">
-                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                            <Setter Property="BorderThickness" Value="2.5" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                            <Setter Property="BorderThickness" Value="{DynamicResource SelectionStrokeThickness}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -113,13 +112,13 @@
                                     Command="{Binding SetAppearanceCmd}" CommandParameter="blue"
                                     Cursor="Hand">
                                 <StackPanel>
-                                    <Border Height="64" CornerRadius="6"
-                                            Background="{DynamicResource CardBackgroundBrush}">
+                                    <Border Height="64" CornerRadius="{DynamicResource ImageCornerRadius}"
+                                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
                                         <Image Source="pack://application:,,,/Assets/m618xsd_blue_top.png"
                                                Stretch="Uniform" Margin="8" />
                                     </Border>
                                     <TextBlock Text="蓝色" HorizontalAlignment="Center" Margin="0,8,0,0"
-                                               Foreground="{DynamicResource ForegroundBrush}" />
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                 </StackPanel>
                             </Button>
                         </Border>
@@ -131,9 +130,9 @@
             <Border Style="{DynamicResource CardStyle}" Margin="0,16,0,0">
                 <StackPanel>
                     <TextBlock FontWeight="SemiBold" FontSize="14" Text="主题"
-                               Foreground="{DynamicResource ForegroundBrush}" />
-                    <TextBlock Foreground="{DynamicResource SubForegroundBrush}"
-                               TextWrapping="Wrap" Margin="0,4,0,12"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{DynamicResource CardDescriptionTextStyle}"
+                               Margin="0,4,0,12"
                                Text="选择浅色或深色界面，立即生效。" />
                     <Grid>
                         <Grid.ColumnDefinitions>

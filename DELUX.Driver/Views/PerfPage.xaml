@@ -5,18 +5,17 @@
 
     <ScrollViewer Padding="24">
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="性能设置" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="性能设置" Style="{DynamicResource PageTitleTextStyle}" />
             <TextBlock Text="调整回报率与去抖，让点击更跟手、更稳。"
-                       Foreground="{DynamicResource SubForegroundBrush}"
+                       Style="{DynamicResource PageSubtitleTextStyle}"
                        Margin="0,4,0,16" />
 
             <Border Style="{DynamicResource CardStyle}">
                 <StackPanel>
                     <TextBlock Text="&#xEC1B;" Style="{DynamicResource IconStyle}" />
-                    <TextBlock Text="性能设置即将开放" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,4"
-                               Foreground="{DynamicResource ForegroundBrush}" />
+                    <TextBlock Text="性能设置即将开放" Style="{DynamicResource CardTitleTextStyle}" Margin="0,12,0,4" />
                     <TextBlock Text="本模块将在「回报率 / 去抖」阶段接入：选择回报率档位，并设置按键去抖时间。"
-                               TextWrapping="Wrap" Foreground="{DynamicResource SubForegroundBrush}" />
+                               Style="{DynamicResource CardDescriptionTextStyle}" />
                 </StackPanel>
             </Border>
         </StackPanel>

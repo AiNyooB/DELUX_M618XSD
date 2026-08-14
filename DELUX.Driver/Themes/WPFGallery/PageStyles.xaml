@@ -14,6 +14,7 @@
     <sys:Double x:Key="DeemphasizedTextOpacity">0.7</sys:Double>
 
     <Style x:Key="BaseTextBlockStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
         <Setter Property="FontSize" Value="{StaticResource BodyTextBlockFontSize}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />

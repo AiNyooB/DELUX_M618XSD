@@ -6,19 +6,18 @@
     <ScrollViewer Padding="24">
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
             <!-- 标题栏：页名 + 一句话说明 -->
-            <TextBlock Text="DPI 灵敏度" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="DPI 灵敏度" Style="{DynamicResource PageTitleTextStyle}" />
             <TextBlock Text="调节指针移动快慢，最多 5 档，可一键切换。"
-                       Foreground="{DynamicResource SubForegroundBrush}"
+                       Style="{DynamicResource PageSubtitleTextStyle}"
                        Margin="0,4,0,16" />
 
             <!-- 空态引导卡片（Phase 1 占位；后续阶段替换为真实配置区） -->
             <Border Style="{DynamicResource CardStyle}">
                 <StackPanel>
                     <TextBlock Text="&#xEC51;" Style="{DynamicResource IconStyle}" />
-                    <TextBlock Text="DPI 设置即将开放" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,4"
-                               Foreground="{DynamicResource ForegroundBrush}" />
+                    <TextBlock Text="DPI 设置即将开放" Style="{DynamicResource CardTitleTextStyle}" Margin="0,12,0,4" />
                     <TextBlock Text="本模块将在「DPI 灵敏度」阶段接入：拖动滑块即可调节每一档灵敏度，修改后自动保存。"
-                               TextWrapping="Wrap" Foreground="{DynamicResource SubForegroundBrush}" />
+                               Style="{DynamicResource CardDescriptionTextStyle}" />
                 </StackPanel>
             </Border>
         </StackPanel>

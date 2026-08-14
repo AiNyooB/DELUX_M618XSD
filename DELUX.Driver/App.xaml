@@ -8,6 +8,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <!-- WPF 内置 Fluent 主题（提供 AccentButtonStyle 等 Fluent Design 控件样式） -->
                 <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
+                <!-- 设计令牌通用层（排版/圆角/间距/边框/动效，不随主题变化） -->
+                <ResourceDictionary Source="Themes/DesignTokens.xaml" />
                 <ResourceDictionary Source="Themes/LightTheme.xaml" />
                 <ResourceDictionary Source="Themes/Styles.xaml" />
                 <!-- WPF Gallery 字体样式体系（SubtitleTextBlockStyle / TitleTextBlockStyle 等） -->

@@ -13,8 +13,9 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 官方驱动警告条 -->
-        <Border Grid.Row="0" Background="#E0A000"
+        <!-- 官方驱动警告条（语义警告色，随浅/深主题切换） -->
+        <Border Grid.Row="0" Style="{DynamicResource CautionBannerStyle}"
+                CornerRadius="0" Padding="0"
                 Visibility="{Binding OfficialDriverRunning, Converter={StaticResource BoolToVis}}">
             <Grid Margin="12,6">
                 <Grid.ColumnDefinitions>
@@ -23,7 +24,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="&#xE7BA;" Style="{DynamicResource IconStyle}" FontSize="16" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
-                           Foreground="#1A1A1A" FontWeight="SemiBold"
+                           Style="{DynamicResource CautionBannerTextStyle}" FontWeight="SemiBold"
                            Text="检测到官方驱动 Mouse.exe 正在运行，请先完全退出后再使用本软件，否则可能无法写入配置。" />
             </Grid>
         </Border>
@@ -43,20 +44,20 @@
                 <StackPanel Grid.Column="0" Margin="8" Orientation="Vertical">
                     <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,8">
                         <StackPanel>
-                            <TextBlock Text="设备信息" FontSize="12" Foreground="{DynamicResource SubForegroundBrush}" />
+                            <TextBlock Text="设备信息" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             <TextBlock Text="{Binding DeviceName}" FontSize="14" FontWeight="SemiBold"
-                                       Margin="0,2,0,0" Foreground="{DynamicResource ForegroundBrush}" />
+                                       Margin="0,2,0,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                 <TextBlock Text="&#xE83D;" Style="{DynamicResource IconStyle}" FontSize="14" />
                                 <TextBlock Text="{Binding BatteryText}" Margin="6,0,0,0"
-                                           VerticalAlignment="Center" Foreground="{DynamicResource ForegroundBrush}" />
+                                           VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,8">
                         <StackPanel>
-                            <TextBlock Text="当前配置" FontSize="12" Foreground="{DynamicResource SubForegroundBrush}" Margin="0,0,0,4" />
+                            <TextBlock Text="当前配置" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                             <ComboBox IsEnabled="False" SelectedIndex="0">
                                 <ComboBoxItem Content="默认配置（未连接）" />
                             </ComboBox>
@@ -111,8 +112,9 @@
                 </StackPanel>
 
                 <Grid Grid.Column="1" Margin="8">
-                    <Border Background="{DynamicResource CardBackgroundBrush}"
-                            BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8">
+                    <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                            CornerRadius="{DynamicResource CardCornerRadius}">
                         <Frame x:Name="DeviceFrame" NavigationUIVisibility="Hidden" />
                     </Border>
                 </Grid>

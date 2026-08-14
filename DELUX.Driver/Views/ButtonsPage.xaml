@@ -5,9 +5,9 @@
 
     <ScrollViewer Padding="24">
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="改键设置" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="改键设置" Style="{DynamicResource PageTitleTextStyle}" />
             <TextBlock Text="把常用操作分配到鼠标上的任意按键，例如前进 / 后退、滚轮模式。"
-                       Foreground="{DynamicResource SubForegroundBrush}"
+                       Style="{DynamicResource PageSubtitleTextStyle}"
                        Margin="0,4,0,16" />
 
             <Border Style="{DynamicResource CardStyle}">
@@ -19,18 +19,17 @@
 
                     <!-- 鼠标产品图（顶视图），随产品外观切换黑/白/蓝 -->
                     <Border Grid.Column="0" Width="220" Height="156" Margin="0,0,24,0"
-                            Background="{DynamicResource CardBackgroundBrush}"
-                            CornerRadius="10" VerticalAlignment="Top">
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="{DynamicResource OverlayCornerRadius}" VerticalAlignment="Top">
                         <Image Source="{Binding AppearanceImageUri}" Stretch="Uniform" Margin="12"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
 
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="&#xE765;" Style="{DynamicResource IconStyle}" />
-                        <TextBlock Text="改键设置即将开放" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,4"
-                                   Foreground="{DynamicResource ForegroundBrush}" />
+                        <TextBlock Text="改键设置即将开放" Style="{DynamicResource CardTitleTextStyle}" Margin="0,12,0,4" />
                         <TextBlock Text="本模块将在「按键设置」阶段接入：点击某个按键，再选想要的功能即可。"
-                                   TextWrapping="Wrap" Foreground="{DynamicResource SubForegroundBrush}" />
+                                   Style="{DynamicResource CardDescriptionTextStyle}" />
                     </StackPanel>
                 </Grid>
             </Border>
