@@ -166,6 +166,9 @@
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 
+# WPF-Samples reference (WPF Gallery 样式库)
+WPF-Samples-main/
+
 # Compressed files
 *.zip
 *.rar

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>DELUX.Driver</AssemblyName>
+    <RootNamespace>DeluxDriver</RootNamespace>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PublishTrimmed>false</PublishTrimmed>
+    <TrimMode>copyused</TrimMode>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <PackageVersion>0.1.0</PackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 纯原生 WPF：未引入任何第三方 UI 库。主题用自研浅/深 ResourceDictionary，
+         图标用 Segoe MDL2 Assets 字体，导航/卡片用原生控件 + Styles.xaml。 -->
+  </ItemGroup>
+
+  <!-- 产品外观插画（白/黑/蓝顶视图），嵌入程序集，自包含发布无需额外拷贝 -->
+  <ItemGroup>
+    <Resource Include="Assets\m618xsd_white_top.png" />
+    <Resource Include="Assets\m618xsd_black_top.png" />
+    <Resource Include="Assets\m618xsd_blue_top.png" />
+  </ItemGroup>
+
+</Project>

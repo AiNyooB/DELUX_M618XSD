@@ -8,7 +8,7 @@
 |---|---|---|---|
 | Phase 1 | ✅ 完成 | 协议逆向：抓包 + Python 脚本实测验证官方协议 | `reference/` |
 | Phase 2 | 🔄 进行中 | C# 驱动（WPF + hid.dll P/Invoke）逐功能实现 | `MouseDriverClient/` |
-| Phase 3 | ⏳ 未开始 | 正式客户端（WPF-UI 现代化 UI + 打包发布） | 见 `三阶段计划文档.md` |
+| Phase 3 | 🔄 进行中 | 正式客户端（**纯原生 WPF** 现代化 UI + 打包发布） | 见 `三阶段计划文档.md` |
 
 ## 目录结构
 
@@ -31,7 +31,9 @@
 
 ## 构建
 
-环境要求：.NET SDK 8.0（Windows 或 Linux 交叉编译均需 `EnableWindowsTargeting`）。
+环境要求：.NET SDK 10.0（Windows 或 Linux 交叉编译均需 `EnableWindowsTargeting`）。
+
+> Phase 3 正式客户端 `DELUX.Driver/` 目标框架为 **net10.0-windows**，使用 WPF 内置 Fluent 主题。构建脚本见 `DELUX.Driver/publish-self.bat`。
 
 ```bash
 # 框架依赖发布（体积小，目标机需 .NET 8 Desktop Runtime）—— 默认发布方式

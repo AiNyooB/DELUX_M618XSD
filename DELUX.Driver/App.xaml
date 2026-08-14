@@ -1,0 +1,21 @@
+<Application x:Class="DeluxDriver.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DeluxDriver"
+             ShutdownMode="OnLastWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- WPF 内置 Fluent 主题（提供 AccentButtonStyle 等 Fluent Design 控件样式） -->
+                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
+                <ResourceDictionary Source="Themes/LightTheme.xaml" />
+                <ResourceDictionary Source="Themes/Styles.xaml" />
+                <!-- WPF Gallery 字体样式体系（SubtitleTextBlockStyle / TitleTextBlockStyle 等） -->
+                <ResourceDictionary Source="Themes/WPFGallery/PageStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <local:BoolInverseConverter x:Key="BoolInverse" />
+            <local:BoolInverseToVisibilityConverter x:Key="BoolInverseToVis" />
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

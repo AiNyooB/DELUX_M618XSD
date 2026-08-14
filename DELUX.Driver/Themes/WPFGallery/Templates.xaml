@@ -1,0 +1,49 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:helpers="clr-namespace:WPFGallery.Helpers"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <ItemsPanelTemplate x:Key="WrapPanelTemplate">
+        <WrapPanel Margin="10"
+                Orientation="Horizontal"/>
+    </ItemsPanelTemplate>
+
+    <DataTemplate x:Key="NavigationCardTemplate">
+        <Button
+            Width="360"
+            Height="90"
+            Margin="7"
+            Padding="20,10"
+            HorizontalContentAlignment="Left"
+            Command="{Binding ViewModel.NavigateCommand, RelativeSource={RelativeSource AncestorType={x:Type Page}}}"
+            CommandParameter="{Binding PageType}">
+            <AutomationProperties.Name>
+                <MultiBinding StringFormat="{}{0}Page. {1}">
+                    <Binding Path="Title" />
+                    <Binding Path="Description" />
+                </MultiBinding>
+            </AutomationProperties.Name>
+            <StackPanel Orientation="Horizontal">
+                <Image Source="{Binding ImageSource}"
+                        Width="50"
+                        Height="50"
+                        Margin="0,0,8,0"/>
+                <StackPanel Orientation="Vertical">
+                    <TextBlock
+                        Margin="10,0,0,0"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        Text="{Binding Title}" AutomationProperties.HeadingLevel="Level3" />
+                    <TextBlock
+                        Width="240"
+                        Margin="10,0,0,0"
+                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                            Opacity="{DynamicResource DeemphasizedTextOpacity}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="{Binding Description}"/>
+                </StackPanel>
+            </StackPanel>
+        </Button>
+    </DataTemplate>
+
+</ResourceDictionary>
