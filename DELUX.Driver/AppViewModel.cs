@@ -160,7 +160,7 @@ public class AppViewModel : ObservableObject, IDisposable
         catch { /* 权限不足时忽略，不阻断 */ }
 
         if (running != OfficialDriverRunning)
-            Application.Current.Dispatcher.Invoke(() => OfficialDriverRunning = running);
+            Application.Current.Dispatcher.BeginInvoke(() => OfficialDriverRunning = running);
     }
 
     #endregion
@@ -469,7 +469,7 @@ public class AppViewModel : ObservableObject, IDisposable
     /// <summary>连接超时回调：未连上 → 停止进度环提示，显示「重新识别」。</summary>
     private void OnConnectTimeout()
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        Application.Current.Dispatcher.BeginInvoke(() =>
         {
             // 已连上或正在重试则忽略。
             if (IsConnected || IsBusy) return;

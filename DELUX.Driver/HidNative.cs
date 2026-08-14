@@ -142,5 +142,11 @@ namespace DeluxDriver
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CancelIo(IntPtr file);
+
+        // CancelIoEx 可取消指定句柄上"任意线程"发起的 I/O（lpOverlapped 传 NULL 表示取消全部挂起 I/O）。
+        // StopInputListener 中的 ReadFile 由 HidInput 线程发起，UI 线程必须用 CancelIoEx 才能取消，
+        // 否则 CloseHandle 会因挂起的 ReadFile 永久阻塞（导致关闭窗口后进程残留）。
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CancelIoEx(IntPtr file, IntPtr overlapped);
     }
 }

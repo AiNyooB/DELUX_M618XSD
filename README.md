@@ -33,19 +33,25 @@
 
 环境要求：.NET SDK 10.0（Windows 或 Linux 交叉编译均需 `EnableWindowsTargeting`）。
 
-> Phase 3 正式客户端 `DELUX.Driver/` 目标框架为 **net10.0-windows**，使用 WPF 内置 Fluent 主题。构建脚本见 `DELUX.Driver/publish-self.bat`。
+> Phase 3 正式客户端 `DELUX.Driver/` 目标框架为 **net10.0-windows**，使用 WPF 内置 Fluent 主题。构建脚本：`DELUX.Driver/publish-fd.bat`（框架依赖，推荐）与 `DELUX.Driver/publish-self.bat`（自包含）。
 
 ```bash
-# 框架依赖发布（体积小，目标机需 .NET 8 Desktop Runtime）—— 默认发布方式
-dotnet publish MouseDriverClient -c Release -r win-x64 --self-contained false \
-  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true -o "publish-self-fd"
+# 框架依赖单文件发布（exe 仅 ~0.8MB，目标机需 .NET 10 Desktop Runtime，一次性）—— 推荐
+dotnet publish DELUX.Driver -c Release -r win-x64 --self-contained false \
+  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true -o "DELUX.Driver/publish-self-fd"
 
-# 自包含单文件发布（目标机免安装运行时，体积 ~155MB）
-dotnet publish MouseDriverClient -c Release -r win-x64 --self-contained true \
-  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true -o "publish-self"
+# 自包含单文件发布（目标机免安装运行时，体积 ~150MB）
+dotnet publish DELUX.Driver -c Release -r win-x64 --self-contained true \
+  -p:EnableWindowsTargeting=true -p:PublishSingleFile=true -o "DELUX.Driver/publish-self"
 ```
 
-> 默认框架依赖单文件发布：`MouseDriverClient.csproj` 中 `SelfContained=false`，不带 `--self-contained` 参数执行即为此模式。需要自包含时用 `--self-contained true` 覆盖。
+> **冷启动注意**：Windows Defender 会对「新建/刚发布的 exe」做一次全量实时扫描，首次启动可能多花 3-4s（与文件大小无关）。实测框架依赖版重建后首次启动 ~4s、后续启动 ~0.5s。要消除首次扫描延迟，可将发布目录加入 Defender 排除项（见下方命令，需管理员权限）。
+>
+> ```powershell
+> Add-MpPreference -ExclusionPath "D:\DELUX_M618XSD\DELUX.Driver\publish-fd"   # 按实际发布目录调整
+> Add-MpPreference -ExclusionPath "D:\DELUX_M618XSD\DELUX.Driver\publish-self-fd"
+> Add-MpPreference -ExclusionPath "D:\DELUX_M618XSD\DELUX.Driver\publish-self"
+> ```
 
 ## 安全须知（开发/实测必读）
 

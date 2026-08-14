@@ -108,12 +108,20 @@ public partial class MainWindow : Window, INavigationService
 
     protected override void OnClosed(EventArgs e)
     {
-        // 先停定时器，避免关闭后 Timer 回调还在跑
-        _vm.Dispose();
+        try
+        {
+            // 先停定时器，避免关闭后 Timer 回调还在跑
+            _vm.Dispose();
 
-        var hid = App.Services.GetRequiredService<HidComm>();
-        hid.StopInputListener();
-        hid.Dispose();
-        base.OnClosed(e);
+            var hid = App.Services.GetRequiredService<HidComm>();
+            hid.StopInputListener();
+            hid.Dispose();
+            base.OnClosed(e);
+        }
+        finally
+        {
+            // 安全网：确保进程退出（防止 Dispatcher.Invoke 等残留回调阻塞；即便清理抛异常也必达）
+            Environment.Exit(0);
+        }
     }
 }

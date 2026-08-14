@@ -5,7 +5,7 @@
 
     <ScrollViewer Padding="24">
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-            <!-- 标题栏：页名 + 一句话说明 -->
+            <!-- 页面标题：页名 + 一句话说明 -->
             <TextBlock Text="DPI 灵敏度" Style="{DynamicResource PageTitleTextStyle}" />
             <TextBlock Text="调节指针移动快慢，最多 5 档，可一键切换。"
                        Style="{DynamicResource PageSubtitleTextStyle}"

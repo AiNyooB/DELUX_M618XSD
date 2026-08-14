@@ -383,9 +383,14 @@ namespace DeluxDriver
             _listening = false;
             if (_dataHandle != HidNative.INVALID_HANDLE_VALUE)
             {
-                HidNative.CancelIo(_dataHandle);
+                // ReadFile 由 HidInput 线程发起，CancelIo 只能取消当前线程的 I/O，故用 CancelIoEx 跨线程取消，
+                // 否则挂起的 ReadFile 会让 CloseHandle 永久阻塞（窗口关闭后进程残留）。
+                HidNative.CancelIoEx(_dataHandle, IntPtr.Zero);
+                // 等待监听线程退出后再关句柄，避免对仍在 ReadFile 的句柄做 CloseHandle 阻塞。
+                _listenThread?.Join(2000);
                 HidNative.CloseHandle(_dataHandle);
                 _dataHandle = HidNative.INVALID_HANDLE_VALUE;
+                _listenThread = null;
             }
         }
 
