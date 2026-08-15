@@ -7,52 +7,41 @@
     mc:Ignorable="d"
     Title="连接设备">
 
-    <!-- 自动布局：图片按自身高度排布（软上限 MaxHeight，不超原图100%），文字区固定高度在下方，整体垂直居中 -->
-    <Grid VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="24">
+    <Grid VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="48">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- 图片区：高度自适应，最大 MaxHeight 软上限；Image 等比且仅缩小不放大（最大 100% 原图） -->
-        <Border Grid.Row="0" CornerRadius="{DynamicResource OverlayCornerRadius}" Padding="12" Margin="48,0,48,12" HorizontalAlignment="Center"
-                MaxHeight="420"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-            <Image Source="{Binding AppearanceImageUri}" Stretch="Uniform"
-                   StretchDirection="DownOnly"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-        </Border>
+        <!-- ===== 行 0：文字区 ===== -->
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center" MaxWidth="460" Margin="0,0,0,24">
 
-        <!-- 文字区：固定内容高度，始终显示在图片下方 -->
-        <StackPanel Grid.Row="1" HorizontalAlignment="Center" MaxWidth="460">
-            <!-- 标题区：根据状态切换显示（Grid 叠加，同一位置只显示一个） -->
-            <Grid>
-                <!-- 默认空态 -->
+            <!-- 标题：5 态切换 -->
+            <Grid Margin="0,0,0,6">
                 <TextBlock Text="请连接设备" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
                            Visibility="{Binding ShowDefaultTitle, Converter={StaticResource BoolToVis}}" />
-                <!-- 连接中 -->
-                <TextBlock Text="正在识别鼠标" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                <TextBlock Text="M618XSD连接中" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-                <!-- 已连接（短暂显示后自动跳转） -->
                 <TextBlock Text="鼠标已连接" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
                            Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
-                <!-- 连接失败：文字提示 + 重新识别按钮 -->
-                <StackPanel Visibility="{Binding ShowReconnect, Converter={StaticResource BoolToVis}}"
-                            HorizontalAlignment="Center">
-                    <TextBlock Text="未识别到鼠标" Style="{StaticResource SubtitleTextBlockStyle}"
-                               HorizontalAlignment="Center" />
-                    <Button Content="重新识别" Command="{Binding ReconnectCmd}"
+                <!-- 失败态：带重试按钮 -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                            Visibility="{Binding ShowReconnect, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="M618XSD连接失败" Style="{StaticResource SubtitleTextBlockStyle}"
+                               VerticalAlignment="Center" />
+                    <Button Content="重试" Command="{Binding ReconnectCmd}"
                             Style="{DynamicResource AccentButtonStyle}"
-                            HorizontalAlignment="Center" Margin="0,8,0,0" />
+                            Height="28" Padding="10,0" FontSize="13"
+                            VerticalAlignment="Center" Margin="12,0,0,0" />
                 </StackPanel>
+                <TextBlock Text="连接失败" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                           Visibility="{Binding ShowErrorTitle, Converter={StaticResource BoolToVis}}" />
             </Grid>
 
             <!-- 副说明 -->
-            <TextBlock TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,8,0,0"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13">
+            <TextBlock TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,6,0,0">
                 <TextBlock.Style>
-                    <Style TargetType="TextBlock">
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource PageSubtitleTextStyle}">
                         <Setter Property="Text" Value="驱动无法识别蓝牙模式连接，请使用 2.4G 接收器或数据线" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsConnected}" Value="True">
@@ -62,23 +51,47 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-
-            <!-- 连接中提示 -->
-            <ProgressBar IsIndeterminate="True" Width="120" Height="6" Margin="0,18,0,0"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-
-            <!-- 连接失败原因（只含错误文案 + 打开任务管理器，不含重新识别） -->
-            <Border Margin="0,18,0,0" Style="{DynamicResource ErrorBannerStyle}"
-                    Visibility="{Binding ConnectErrorVisible, Converter={StaticResource BoolToVis}}">
-                <StackPanel>
-                    <TextBlock Text="{Binding ConnectErrorText}" TextWrapping="Wrap"
-                               Style="{DynamicResource ErrorBannerTextStyle}" />
-                    <Button Content="打开任务管理器" Command="{Binding OpenTaskManagerCmd}"
-                            Style="{DynamicResource TextButtonStyle}"
-                            Margin="0,8,0,0"
-                            Visibility="{Binding ShowOpenTaskManager, Converter={StaticResource BoolToVis}}" />
-                </StackPanel>
-            </Border>
         </StackPanel>
+
+        <!-- ===== 行 1：图片卡片 ===== -->
+        <Grid Grid.Row="1" HorizontalAlignment="Center">
+
+            <!-- 图片卡片：连接失败时背景变灰，图片和文字不变 -->
+            <Border x:Name="ImageCard" MaxWidth="300"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" Padding="12">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="8" />
+                        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+                        <Style.Triggers>
+                            <!-- 连接失败或驱动冲突时卡片背景变灰 -->
+                            <DataTrigger Binding="{Binding IsDimmed}" Value="True">
+                                <Setter Property="Background" Value="#E8E8E8" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <!-- 图片容器：黄金比例，ProgressBar 叠加在顶部 -->
+                    <Grid HorizontalAlignment="Stretch"
+                          Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}, Converter={StaticResource GoldenRatio}}">
+                        <Image Source="{Binding AppearanceImageUri}" Stretch="UniformToFill" StretchDirection="DownOnly"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <TranslateTransform X="-24" />
+                            </Image.RenderTransform>
+                        </Image>
+
+                        <!-- ProgressBar 叠加在图片顶部 -->
+                        <Border Height="4" VerticalAlignment="Top" Margin="0,0,0,0">
+                            <ProgressBar IsIndeterminate="True" Height="4" VerticalAlignment="Stretch"
+                                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Page>

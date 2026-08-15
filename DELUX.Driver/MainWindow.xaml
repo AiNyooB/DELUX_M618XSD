@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="DELUX M618XSD" Height="720" Width="1080" MinWidth="920" MinHeight="640"
+        Title="DELUX M618XSD" Height="720" Width="1080" MinWidth="1080" MinHeight="720"
         Background="{DynamicResource AppBackgroundBrush}">
 
     <Grid>

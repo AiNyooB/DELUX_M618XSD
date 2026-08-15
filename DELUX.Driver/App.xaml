@@ -18,6 +18,7 @@
             <local:BoolInverseConverter x:Key="BoolInverse" />
             <local:BoolInverseToVisibilityConverter x:Key="BoolInverseToVis" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
+            <local:GoldenRatioConverter x:Key="GoldenRatio" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

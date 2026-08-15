@@ -14,6 +14,10 @@ public class AppViewModel : ObservableObject, IDisposable
     private readonly System.Threading.Timer _driverTimer;
     private readonly System.Threading.Timer _connectTimer;
     private const int ConnectTimeoutMs = 8000;
+    private const int MaxAutoConnectAttempts = 3;
+    private const int RetryDelayMs = 2000;
+    private int _autoConnectAttempts;
+    private bool _pendingRetry;
 
     /// <summary>产品外观：White / Black / Blue，默认白色（用户确认）。纯本地设置，不写设备。</summary>
     public enum ProductAppearance { White, Black, Blue }
@@ -25,11 +29,10 @@ public class AppViewModel : ObservableObject, IDisposable
     {
         _hid = hid;
         ConnectCmd = new RelayCommand(_ => _ = ConnectAsync(), _ => !IsBusy);
-        ReconnectCmd = new RelayCommand(_ => _ = ConnectAsync());
+        ReconnectCmd = new RelayCommand(_ => { _autoConnectAttempts = 0; _ = ConnectAsync(); });
         DisconnectCmd = new RelayCommand(_ => Disconnect(), _ => IsConnected && !IsBusy);
         ThemeCmd = new RelayCommand(p => SetTheme(p as string));
-        OpenTaskManagerCmd = new RelayCommand(_ => OpenTaskManager());
-        SetAppearanceCmd = new RelayCommand(p => SetAppearance(p as string));
+                SetAppearanceCmd = new RelayCommand(p => SetAppearance(p as string));
 
         // 周期检测官方 Mouse.exe 是否运行（AGENTS.md 前置条件：必须退出官方驱动）。
         _driverTimer = new System.Threading.Timer(_ => CheckOfficialDriver(), null, 0, 3000);
@@ -184,19 +187,6 @@ public class AppViewModel : ObservableObject, IDisposable
         App.ApplyTheme(IsDark);
     }
 
-    /// <summary>一键打开任务管理器（原型 §1.3：官方驱动运行时给「打开任务管理器」引导）。</summary>
-    private void OpenTaskManager()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("taskmgr.exe") { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"打开任务管理器失败：{ex.Message}");
-        }
-    }
-
     #endregion
 
     #region 连接状态
@@ -208,7 +198,10 @@ public class AppViewModel : ObservableObject, IDisposable
         set
         {
             if (SetProperty(ref _isConnected, value))
+            {
                 OnPropertyChanged(nameof(ShowDefaultTitle));
+                OnPropertyChanged(nameof(IsDimmed));
+            }
         }
     }
 
@@ -219,12 +212,21 @@ public class AppViewModel : ObservableObject, IDisposable
         set
         {
             if (SetProperty(ref _isBusy, value))
+            {
                 OnPropertyChanged(nameof(ShowDefaultTitle));
+                OnPropertyChanged(nameof(IsDimmed));
+            }
         }
     }
 
     /// <summary>默认空态标题「请连接设备」可见：未连接、未忙碌、无错误。</summary>
     public bool ShowDefaultTitle => !IsBusy && !IsConnected && !ConnectErrorVisible;
+
+    /// <summary>显示「连接失败」标题（官方驱动冲突等无法重试的场景）。</summary>
+    public bool ShowErrorTitle => ConnectErrorVisible && !ShowReconnect && !IsBusy && !IsConnected;
+
+    /// <summary>连接失败时卡片背景变灰。</summary>
+    public bool IsDimmed => !IsConnected && !IsBusy && (ShowReconnect || ConnectErrorVisible);
 
     /// <summary>状态条颜色：绿=已连接 / 灰=未连接 / 黄=连接中。</summary>
     private string _statusColor = "#888888";
@@ -272,15 +274,21 @@ public class AppViewModel : ObservableObject, IDisposable
     public ICommand ConnectCmd { get; }
     public ICommand ReconnectCmd { get; }
     public ICommand DisconnectCmd { get; }
-    public ICommand OpenTaskManagerCmd { get; }
-    public ICommand SetAppearanceCmd { get; }
+        public ICommand SetAppearanceCmd { get; }
 
     /// <summary>自动连接超时后显示「重新识别」按钮（用户可手动重试）。</summary>
     private bool _showReconnect;
     public bool ShowReconnect
     {
         get => _showReconnect;
-        set => SetProperty(ref _showReconnect, value);
+        set
+        {
+            if (SetProperty(ref _showReconnect, value))
+            {
+                OnPropertyChanged(nameof(ShowErrorTitle));
+                OnPropertyChanged(nameof(IsDimmed));
+            }
+        }
     }
 
     #region 连接失败原因（原型 §1.3：区分场景给可执行文案）
@@ -292,7 +300,11 @@ public class AppViewModel : ObservableObject, IDisposable
         set
         {
             if (SetProperty(ref _connectErrorVisible, value))
+            {
                 OnPropertyChanged(nameof(ShowDefaultTitle));
+                OnPropertyChanged(nameof(ShowErrorTitle));
+                OnPropertyChanged(nameof(IsDimmed));
+            }
         }
     }
 
@@ -303,13 +315,6 @@ public class AppViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _connectErrorText, value);
     }
 
-    private bool _showOpenTaskManager;
-    public bool ShowOpenTaskManager
-    {
-        get => _showOpenTaskManager;
-        set => SetProperty(ref _showOpenTaskManager, value);
-    }
-
     /// <summary>
     /// 根据 HID 返回的错误信息区分失败场景，给出可执行文案（原型 §1.3）。
     /// 协议术语不外显；统一动词「连接设备」。
@@ -317,7 +322,6 @@ public class AppViewModel : ObservableObject, IDisposable
     private void SetConnectErrorByReason(string? reason)
     {
         ConnectErrorVisible = true;
-        ShowOpenTaskManager = false;
         ShowReconnect = true;
 
         var msg = (reason ?? "").ToLowerInvariant();
@@ -346,7 +350,6 @@ public class AppViewModel : ObservableObject, IDisposable
         BatteryText = "—";
         ConnectErrorVisible = false;
         ShowReconnect = false;
-        ShowOpenTaskManager = false;
         Navigation?.Navigate("Connect");
         AppendLog("已断开连接。");
     }
@@ -357,16 +360,18 @@ public class AppViewModel : ObservableObject, IDisposable
     /// </summary>
     public void AutoConnect()
     {
+        _autoConnectAttempts = 0;
         _ = ConnectAsync();
     }
 
     private async System.Threading.Tasks.Task ConnectAsync()
     {
-        if (IsBusy) return;
+        // 允许重试调用的 IsBusy 绕过（_pendingRetry 期间 IsBusy 保持 true）
+        if (IsBusy && !_pendingRetry) return;
+        _pendingRetry = false;
         IsBusy = true;
         ShowReconnect = false;
         ConnectErrorVisible = false;
-        ShowOpenTaskManager = false;
         StatusColor = "#E0A000";
         StatusText = "正在识别鼠标…";
         ConnectButtonText = "正在识别…";
@@ -374,6 +379,8 @@ public class AppViewModel : ObservableObject, IDisposable
 
         // 启动超时计时：超过阈值仍未连上 → 提示重新识别。
         _connectTimer.Change(ConnectTimeoutMs, System.Threading.Timeout.Infinite);
+
+        bool shouldRetry = false;
 
         try
         {
@@ -384,9 +391,8 @@ public class AppViewModel : ObservableObject, IDisposable
             if (OfficialDriverRunning)
             {
                 ConnectErrorVisible = true;
-                ShowOpenTaskManager = true;
-                ShowReconnect = false;
-                ConnectErrorText = "检测到官方驱动运行中，为避免冲突请先关闭后再连接。";
+                ShowReconnect = true;
+                ConnectErrorText = "请先完全退出 Mouse.exe 再重新打开本软件。";
                 AppendLog("已阻止连接：检测到官方驱动 Mouse.exe 正在运行，请先完全退出后再试。");
                 return;
             }
@@ -428,8 +434,8 @@ public class AppViewModel : ObservableObject, IDisposable
             if (ok)
             {
                 IsConnected = true;
+                _autoConnectAttempts = 0;
                 ConnectErrorVisible = false;
-                ShowOpenTaskManager = false;
                 ShowReconnect = false;
                 StatusColor = "#1A9E3E";
                 StatusText = "已连接";
@@ -442,27 +448,46 @@ public class AppViewModel : ObservableObject, IDisposable
             }
             else
             {
-                // 接收器在但鼠标没开 / 未枚举到 → 视为未连上，提示重新识别。
-                StatusColor = "#888888";
-                StatusText = "未连接";
-                ConnectButtonText = "连接设备";
-                DeviceName = "未连接";
-                ShowReconnect = true;
-                ConnectErrorVisible = true;
-                ShowOpenTaskManager = false;
-                ConnectErrorText = _hid.IsConnected
-                    ? "已检测到接收器，但鼠标未开机或无响应，请打开鼠标后点击重新识别。"
-                    : $"连接失败，请确认接收器已插入、官方驱动已关闭后重试。";
-                AppendLog(_hid.IsConnected
-                    ? "接收器已枚举，但未收到鼠标 Input 上报：鼠标可能未开机。"
-                    : $"连接失败：{_hid.LastErrorMessage}");
+                _autoConnectAttempts++;
+                if (_autoConnectAttempts < MaxAutoConnectAttempts)
+                {
+                    // 自动重试，不显示错误
+                    shouldRetry = true;
+                    StatusText = $"正在识别鼠标（第{_autoConnectAttempts + 1}/{MaxAutoConnectAttempts}次）";
+                    AppendLog($"第{_autoConnectAttempts}次识别未成功，{RetryDelayMs / 1000}秒后重试…");
+                }
+                else
+                {
+                    // 3 次均失败，显示错误
+                    StatusColor = "#888888";
+                    StatusText = "未连接";
+                    ConnectButtonText = "连接设备";
+                    DeviceName = "未连接";
+                    ShowReconnect = true;
+                    ConnectErrorVisible = true;
+                    ConnectErrorText = _hid.IsConnected
+                        ? "已检测到接收器，但鼠标未开机或无响应，请打开鼠标后点击重新识别。"
+                        : $"连接失败，请确认接收器已插入、官方驱动已关闭后重试。";
+                    AppendLog(_hid.IsConnected
+                        ? "接收器已枚举，但未收到鼠标 Input 上报：鼠标可能未开机。"
+                        : $"连接失败：{_hid.LastErrorMessage}");
+                }
             }
         }
         finally
         {
-            // 无论成功失败都取消超时计时，并复位忙状态。
             _connectTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
-            IsBusy = false;
+            if (shouldRetry)
+            {
+                // 重试期间保持 IsBusy=true，标题不闪回默认态
+                _pendingRetry = true;
+                _ = System.Threading.Tasks.Task.Delay(RetryDelayMs).ContinueWith(_ =>
+                    Application.Current.Dispatcher.BeginInvoke(() => _ = ConnectAsync()));
+            }
+            else
+            {
+                IsBusy = false;
+            }
         }
     }
 
@@ -475,7 +500,6 @@ public class AppViewModel : ObservableObject, IDisposable
             if (IsConnected || IsBusy) return;
             ShowReconnect = true;
             ConnectErrorVisible = true;
-            ShowOpenTaskManager = false;
             ConnectErrorText = "未能自动识别到鼠标，请确认接收器已插入或数据线已连接后点击重新识别。";
             StatusColor = "#888888";
             StatusText = "未识别到鼠标";

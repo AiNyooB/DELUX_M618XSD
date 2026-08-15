@@ -2,7 +2,7 @@
 .claude
 .gemini
 .opencode
-.zcode
+**.zcode/
 
 # IDE and Editors
 **/.idea/
@@ -169,6 +169,7 @@
 
 # WPF-Samples reference (WPF Gallery 样式库)
 WPF-Samples-main/
+wpf-main/
 
 # Compressed files
 *.zip
