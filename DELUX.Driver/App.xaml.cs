@@ -36,6 +36,10 @@ public partial class App : Application
 
     public App()
     {
+        // 背景材质由自研 DwmBackdrop 全权接管（明暗跟随应用自研主题），关闭 WPF 内置
+        // WindowBackdropManager（其明暗跟随系统主题，与自研主题不一致）。
+        AppContext.SetSwitch("Switch.System.Windows.Appearance.DisableFluentThemeWindowBackdrop", true);
+
         InitializeComponent();
     }
 

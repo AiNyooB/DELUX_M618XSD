@@ -1,7 +1,9 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace DeluxDriver;
 
@@ -52,6 +54,26 @@ public partial class MainWindow : Window, INavigationService
     private void BuildNavigation()
     {
         // 导航项已在 XAML 中以 ListBoxItem 声明，此处仅确保初始高亮。
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        // Win11 22H2+ 应用 DWM Mica 背景材质（明暗跟随自研主题）；其余系统静默保持纯色。
+        if (DwmBackdrop.Apply(this, DwmBackdrop.BackdropType.Mica, _vm.IsDark))
+        {
+            // 材质生效后窗口背景须透明才能透出（DwmBackdrop 已设 CompositionTarget 透明）。
+            Background = Brushes.Transparent;
+            _vm.PropertyChanged += OnThemeChanged;
+        }
+    }
+
+    private void OnThemeChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // 浅/深主题切换时，同步 DWM 材质着色与标题栏明暗，保证与自研主题字典一致。
+        if (e.PropertyName == nameof(AppViewModel.IsDark))
+            DwmBackdrop.Apply(this, DwmBackdrop.BackdropType.Mica, _vm.IsDark);
     }
 
     private void Nav_SelectionChanged(object sender, SelectionChangedEventArgs e)
