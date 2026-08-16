@@ -94,10 +94,11 @@ public partial class App : Application
         }
         catch { }
 
-        // 应用启动时按系统默认使用浅色主题（原生 WPF 主题字典）。
+        // 应用启动期主题：唯一事实来源为 AppViewModel.IsDark（其已加载持久化用户选择或系统偏好）。
         try
         {
-            ApplyTheme(false);
+            var vm = Services.GetRequiredService<AppViewModel>();
+            ApplyTheme(vm.IsDark);
         }
         catch (Exception ex)
         {

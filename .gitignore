@@ -3,6 +3,10 @@
 .gemini
 .opencode
 **.zcode/
+.pi
+.freebuff
+
+
 
 # IDE and Editors
 **/.idea/

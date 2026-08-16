@@ -69,17 +69,21 @@ public static class DwmBackdrop
         DwmExtendFrameIntoClientArea(hwnd, ref margins);
 
         // 背景材质：22H2+ 官方属性（MicaWPF / 内置 WindowBackdropManager 同款 DWMWA_SYSTEMBACKDROP_TYPE）。
+        // 关键属性，失败则整体放弃，调用方据此降级为纯色背景。
         int backdrop = (int)type;
         if (DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdrop, sizeof(int)) != 0)
             return false;
 
         // 标题栏/边框明暗：跟随应用自研主题（浅/深），保证与自研主题字典一致。
+        // 次要属性：失败不影响材质本身，按 best-effort 处理（22621+ 上均支持，正常返回 0）。
         int dark = isDark ? 1 : 0;
-        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+        if (DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int)) != 0)
+        { /* 标题栏明暗未生效：材质已应用，后续由 WPF 标题栏着色兜底 */ }
 
-        // Win11 默认圆角，显式声明与系统一致（最大化时 DWM 自动直角）。
+        // Win11 默认圆角，显式声明与系统一致（最大化时 DWM 自动直角）。同为次要 best-effort。
         int corner = DWMWCP_ROUND;
-        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
+        if (DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int)) != 0)
+        { /* 圆角未生效：材质已应用，窗口仍可用，不影响主功能 */ }
 
         // 关键：WPF 合成器背景必须透明，材质才能透出（内置 WindowBackdropManager.RemoveBackground 同款）。
         if (PresentationSource.FromVisual(window) is HwndSource source)

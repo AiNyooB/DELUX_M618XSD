@@ -60,20 +60,23 @@ public partial class MainWindow : Window, INavigationService
     {
         base.OnSourceInitialized(e);
 
-        // Win11 22H2+ 应用 DWM Mica 背景材质（明暗跟随自研主题）；其余系统静默保持纯色。
+        // 始终订阅主题变更：即便首次 Apply 因瞬态原因失败，后续切换主题时也会重试应用材质。
+        _vm.PropertyChanged += OnThemeChanged;
+        ApplyBackdrop();
+    }
+
+    /// <summary>应用 DWM Mica 背景材质；不支持或失败时窗口保持纯色背景（由 XAML 的 AppBackgroundBrush 提供）。</summary>
+    private void ApplyBackdrop()
+    {
         if (DwmBackdrop.Apply(this, DwmBackdrop.BackdropType.Mica, _vm.IsDark))
-        {
-            // 材质生效后窗口背景须透明才能透出（DwmBackdrop 已设 CompositionTarget 透明）。
             Background = Brushes.Transparent;
-            _vm.PropertyChanged += OnThemeChanged;
-        }
     }
 
     private void OnThemeChanged(object? sender, PropertyChangedEventArgs e)
     {
         // 浅/深主题切换时，同步 DWM 材质着色与标题栏明暗，保证与自研主题字典一致。
         if (e.PropertyName == nameof(AppViewModel.IsDark))
-            DwmBackdrop.Apply(this, DwmBackdrop.BackdropType.Mica, _vm.IsDark);
+            ApplyBackdrop();
     }
 
     private void Nav_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -93,11 +96,15 @@ public partial class MainWindow : Window, INavigationService
         _vm.CurrentPageKey = pageKey;
 
         // 两态布局切换（原型 §1）：等待页无左栏，设备页带左栏。
+        // 注意：Frame 宿主的 Page 不会继承 Window 的 DataContext（Frame 隔离内容树），
+        // 故所有页面在导航时统一注入 AppViewModel，否则页面内 {Binding ...} 全部绑到 null。
         if (pageKey == "Connect")
         {
             DeviceGrid.Visibility = Visibility.Collapsed;
             ConnectFrame.Navigated -= ConnectFrame_Navigated;
-            ConnectFrame.Navigate(factory());
+            var connectPage = factory();
+            connectPage.DataContext = _vm;
+            ConnectFrame.Navigate(connectPage);
             ConnectFrame.Navigated += ConnectFrame_Navigated;
         }
         else
@@ -106,7 +113,9 @@ public partial class MainWindow : Window, INavigationService
             ConnectFrame.Content = null;
             DeviceGrid.Visibility = Visibility.Visible;
             DeviceFrame.Navigated -= DeviceFrame_Navigated;
-            DeviceFrame.Navigate(factory());
+            var page = factory();
+            page.DataContext = _vm;
+            DeviceFrame.Navigate(page);
             DeviceFrame.Navigated += DeviceFrame_Navigated;
 
             // 同步侧边栏高亮。

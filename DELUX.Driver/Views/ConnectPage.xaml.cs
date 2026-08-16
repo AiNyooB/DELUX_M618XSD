@@ -8,9 +8,6 @@ namespace DeluxDriver;
 /// </summary>
 public partial class ConnectPage : Page
 {
-    public ConnectPage()
-    {
-        InitializeComponent();
-        DataContext = App.Services.GetRequiredService<AppViewModel>();
-    }
+    public ConnectPage() => InitializeComponent();
+    // DataContext 由 MainWindow.Navigate 统一注入（Frame 不继承 Window 的 DataContext）。
 }

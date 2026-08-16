@@ -31,8 +31,7 @@ public class AppViewModel : ObservableObject, IDisposable
         ConnectCmd = new RelayCommand(_ => _ = ConnectAsync(), _ => !IsBusy);
         ReconnectCmd = new RelayCommand(_ => { _autoConnectAttempts = 0; _ = ConnectAsync(); });
         DisconnectCmd = new RelayCommand(_ => Disconnect(), _ => IsConnected && !IsBusy);
-        ThemeCmd = new RelayCommand(p => SetTheme(p as string));
-                SetAppearanceCmd = new RelayCommand(p => SetAppearance(p as string));
+        SetAppearanceCmd = new RelayCommand(p => SetAppearance(p as string));
 
         // 周期检测官方 Mouse.exe 是否运行（AGENTS.md 前置条件：必须退出官方驱动）。
         _driverTimer = new System.Threading.Timer(_ => CheckOfficialDriver(), null, 0, 3000);
@@ -41,6 +40,8 @@ public class AppViewModel : ObservableObject, IDisposable
 
         // 加载产品外观本地设置（默认白色，用户确认）。
         LoadAppearance();
+        // 加载主题：优先持久化的用户选择，无记录则跟随系统（AGENTS.md §3.5 默认跟随系统）。
+        LoadTheme();
     }
 
     #region 产品外观（本地持久化，不写设备）
@@ -170,21 +171,108 @@ public class AppViewModel : ObservableObject, IDisposable
 
     #region 主题切换
 
+    /// <summary>主题模式：跟随设备（系统）/ 浅色 / 深色。</summary>
+    public enum ThemeModeKind { System, Light, Dark }
+
+    private ThemeModeKind _themeMode = ThemeModeKind.System;
+    /// <summary>用户选择的主题模式；setter 解析为实际明暗并应用 + 持久化。</summary>
+    public ThemeModeKind ThemeMode
+    {
+        get => _themeMode;
+        set
+        {
+            if (!SetProperty(ref _themeMode, value)) return;
+            ApplyThemeMode();
+        }
+    }
+
     private bool _isDark;
+    /// <summary>当前实际明暗（由 ThemeMode 解析；MainWindow 据此同步 DWM 材质）。</summary>
     public bool IsDark
     {
         get => _isDark;
         set => SetProperty(ref _isDark, value);
     }
 
-    public ICommand ThemeCmd { get; }
-
-    private void SetTheme(string? mode)
+    /// <summary>解析当前 ThemeMode 为实际明暗，应用资源字典 + 通知 DWM + 持久化。</summary>
+    private void ApplyThemeMode()
     {
-        bool dark = string.Equals(mode, "dark", StringComparison.OrdinalIgnoreCase);
-        if (dark == IsDark) return;
-        IsDark = dark;
-        App.ApplyTheme(IsDark);
+        bool dark = ResolveDark(_themeMode);
+        if (dark != _isDark)
+        {
+            _isDark = dark;
+            App.ApplyTheme(dark);
+            OnPropertyChanged(nameof(IsDark)); // 触发 MainWindow 更新 DWM 材质明暗
+        }
+        SaveTheme();
+    }
+
+    private static bool ResolveDark(ThemeModeKind mode) => mode switch
+    {
+        ThemeModeKind.Dark => true,
+        ThemeModeKind.Light => false,
+        _ => IsSystemDark(), // System：跟随设备/系统明暗
+    };
+
+    private static string ThemeConfigPath()
+        => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DELUX.Driver", "theme");
+
+    /// <summary>
+    /// 启动期加载主题模式：优先持久化记录，无记录默认跟随设备（AGENTS.md §3.5 默认跟随系统）。
+    /// 构造期无订阅者，直接赋字段避免多余通知（同 LoadAppearance 写 _appearance）。
+    /// 实际资源字典由 App.OnStartup 据 IsDark 统一应用；兼容旧 light/dark 记录。
+    /// </summary>
+    private void LoadTheme()
+    {
+        ThemeModeKind mode;
+        try
+        {
+            var path = ThemeConfigPath();
+            mode = System.IO.File.Exists(path)
+                ? System.IO.File.ReadAllText(path).Trim().ToLowerInvariant() switch
+                {
+                    "light" => ThemeModeKind.Light,
+                    "dark" => ThemeModeKind.Dark,
+                    _ => ThemeModeKind.System,
+                }
+                : ThemeModeKind.System;
+        }
+        catch
+        {
+            mode = ThemeModeKind.System;
+        }
+        _themeMode = mode;
+        _isDark = ResolveDark(mode);
+    }
+
+    private void SaveTheme()
+    {
+        try
+        {
+            var path = ThemeConfigPath();
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            System.IO.File.WriteAllText(path, _themeMode switch
+            {
+                ThemeModeKind.Light => "light",
+                ThemeModeKind.Dark => "dark",
+                _ => "system",
+            });
+        }
+        catch { /* 写失败忽略，不阻断 UI */ }
+    }
+
+    /// <summary>读取系统明暗偏好（注册表 AppsUseLightTheme：0=深色）。读失败按浅色。</summary>
+    private static bool IsSystemDark()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            return key?.GetValue("AppsUseLightTheme") is int v && v == 0;
+        }
+        catch { return false; }
     }
 
     #endregion
