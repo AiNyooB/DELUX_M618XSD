@@ -35,6 +35,8 @@
     <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#B3FFFFFF" />
     <SolidColorBrush x:Key="CardBackgroundFillColorSecondaryBrush" Color="#80F6F6F6" />
     <SolidColorBrush x:Key="CardBackgroundFillColorDimmedBrush" Color="#E8E8E8" />
+    <!-- 左栏/导航区「非活动」态：半透明灰图层，叠在 Mica 上仍透出 DWM 背景（Fluent 内容层规范：低不透明度纯色）。仅左栏变灰用，不改全局 Dimmed。 -->
+    <SolidColorBrush x:Key="PaneDimmedFillBrush" Color="#66E8E8E8" />
     <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#80FFFFFF" />
     <SolidColorBrush x:Key="LayerFillColorAltBrush" Color="#FFFFFF" />
 

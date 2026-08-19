@@ -14,7 +14,7 @@
 |---|---|---|
 | Phase 1 | ✅ 完成 | 协议逆向（抓包 + Python 实测），产物在 `reference/` |
 | Phase 2 | ✅ 完成 | C# WPF 上位机 `MouseDriverClient/` 逐功能实现（协议层全部打通，含单元测试） |
-| Phase 3 | 🔄 **进行中（最终阶段）** | 正式客户端 `DELUX.Driver/`（**纯原生 WPF** + MVVM + DI，未引入任何第三方 UI 库），重点打磨 UX/UI，见 `三阶段计划文档.md` |
+| Phase 3 | 🔄 **进行中（最终阶段）** | 正式客户端 `DELUX.Driver/`（**原生 WPF** + MVVM + DI，已引入 `GongSolutions.WPF.DragDrop` 用于拖拽排序），重点打磨 UX/UI，见 `三阶段计划文档.md` |
 
 > Phase 2 的 `MouseDriverClient/` 是**协议验证载体**：编解码逻辑（`Models.cs`）与通信层（`HidComm.cs`）已实机验证，
 > 是 Phase 3 复用的基础。Phase 3 的职责是**把已验证的协议能力包装成普通用户看得懂、用得了的界面**。
@@ -118,7 +118,7 @@
 - **分层**：通信层只允许 `HidComm.cs`（P/Invoke hid.dll）与设备交互；业务编排在 `MainViewModel.cs`；`MainWindow.xaml.cs` 退化为纯视图层。
 - **协议模型**（DpiConfig/ButtonConfig/MacroConfig/LightConfig/RateConfig）集中在 `Models.cs`，字段注释需标注依据来源（文档节号 / 实机验证日期）。
 - **命名空间** `MouseDriverClient`；WPF 项目 net10.0-windows + UseWPF。
-- **代码注释用中文**；不引入日志库/Serilog；不引入未列入计划文档的第三方 UI 库。
+- **代码注释用中文**；不引入日志库/Serilog；已授权引入的第三方库：`GongSolutions.WPF.DragDrop`（快捷指令拖拽排序）。其余第三方 UI 库仍需纳入计划文档后方可引入。
 - **写测试**：使用 `.agents/skills/code-testing-agent` 生成单元测试。可脱离 HID 硬件的纯逻辑（协议编解码、校验和、宏序列构建）应优先补测。
 - **UX 实现**：凡新增 UI 功能，先对照 `三阶段计划文档.md` 对应 Phase 的 UX/UI 清单，逐条落实后再交付；文案禁止出现协议术语。
 - **设计系统**：UI 实现优先使用 `DESIGN.md` 中定义的设计令牌和组件样式；新样式须基于现有令牌体系扩展，避免硬编码色值/字号/间距。

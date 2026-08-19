@@ -17,8 +17,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 纯原生 WPF：未引入任何第三方 UI 库。主题用自研浅/深 ResourceDictionary，
-         图标用 Segoe MDL2 Assets 字体，导航/卡片用原生控件 + Styles.xaml。 -->
+    <!-- 已引入 GongSolutions.WPF.DragDrop（快捷指令拖拽排序）。
+         主题用自研浅/深 ResourceDictionary，图标用 Segoe MDL2 Assets 字体，
+         导航/卡片用原生控件 + Styles.xaml。 -->
   </ItemGroup>
 
   <!-- 产品外观插画（白/黑/蓝顶视图），嵌入程序集，自包含发布无需额外拷贝 -->
@@ -26,6 +27,9 @@
     <Resource Include="Assets\m618xsd_white_top.png" />
     <Resource Include="Assets\m618xsd_black_top.png" />
     <Resource Include="Assets\m618xsd_blue_top.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="gong-wpf-dragdrop" Version="4.*" />
   </ItemGroup>
 
 </Project>

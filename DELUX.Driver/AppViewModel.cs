@@ -53,11 +53,13 @@ public class AppViewModel : ObservableObject, IDisposable
         ExportMacroCmd = new RelayCommand(_ => ExportMacro());
         RecordToggleCmd = new RelayCommand(_ => ToggleRecord());
         InsertKeyCmd = new RelayCommand(_ => InsertKey());
+        InsertMouseCmd = new RelayCommand(_ => InsertMouse());
         ClearActionsCmd = new RelayCommand(_ => ClearActions());
         // 左键改键风险确认（仅左键点击标签即弹，未选功能前先提示；见 SelectButton / ConfirmLeftBtnChange）。
         LeftBtnConfirmOkCmd = new RelayCommand(_ => ConfirmLeftBtnChange());
         LeftBtnConfirmCancelCmd = new RelayCommand(_ => CancelLeftBtnChange());
         _recorder.KeyEvent += OnKeyEvent;
+        _recorder.MouseEvent += OnMouseEvent;
         InitDpi();
         InitButtons();
         InitMacros();
@@ -810,7 +812,15 @@ public class AppViewModel : ObservableObject, IDisposable
         /// <summary>延迟被修改（VM 订阅此事件以标记「未保存」——延迟框直改共享 Action，绕过了 MarkMacroDirty）。</summary>
         public event Action? DelayChanged;
 
-        public string KeyName => KeyboardRecorder.KeyNameOf(Action.Code);
+        public string KeyName => InputRecorder.KeyNameOf(Action.Code);
+
+        /// <summary>更新按键码并刷新显示名（供 UI 编辑键值回写）。</summary>
+        public void SetCode(byte newCode)
+        {
+            if (Action.Code == newCode) return;
+            Action.Code = newCode;
+            OnPropertyChanged(nameof(KeyName));
+        }
 
         public bool Press
         {
@@ -1491,7 +1501,7 @@ public class AppViewModel : ObservableObject, IDisposable
 
     // ---- 实时录制（低级键盘钩子，仅录制期间安装；鼠标动作码未逆向 → 不提供录制鼠标，见 AGENTSK 6 节） ----
 
-    private readonly KeyboardRecorder _recorder = new();
+    private readonly InputRecorder _recorder = new();
     private DateTime _lastKeyTime;
     /// <summary>录制期间按下的键（未抬起）；停止录制时补录为「抬起」，防播放时修饰键/按键卡死。</summary>
     private readonly HashSet<byte> _recordingDownKeys = new();
@@ -1502,7 +1512,11 @@ public class AppViewModel : ObservableObject, IDisposable
 
     private bool _capturingKey;
     public bool IsCapturingKey { get => _capturingKey; set { if (SetProperty(ref _capturingKey, value)) OnPropertyChanged(nameof(InsertKeyButtonText)); } }
-    public string InsertKeyButtonText => IsCapturingKey ? "请按下要插入的键…（Esc 取消）" : "插入按键";
+    public string InsertKeyButtonText => IsCapturingKey ? "请按下键盘按键…（Esc 取消）" : "插入键盘按键";
+
+    private bool _capturingMouse;
+    public bool IsCapturingMouse { get => _capturingMouse; set { if (SetProperty(ref _capturingMouse, value)) OnPropertyChanged(nameof(InsertMouseButtonText)); } }
+    public string InsertMouseButtonText => IsCapturingMouse ? "请按下鼠标按键…（Esc 取消）" : "插入鼠标按键";
 
     /// <summary>录制开关（录制中再次点击 = 停止）。</summary>
     public void ToggleRecord()
@@ -1516,7 +1530,8 @@ public class AppViewModel : ObservableObject, IDisposable
         if (_editingMacro == null) return;
         // 录制是纯本地键盘捕获，不依赖设备连接（宏保存亦不写设备）
         if (OfficialDriverRunning) { ShowToast("检测到官方驱动运行中。请完全退出 Mouse.exe 后重试。"); return; }
-        IsCapturingKey = false; // 取消残留的「插入按键」捕获态
+        IsCapturingKey = false;  // 取消残留的「插入按键」捕获态
+        IsCapturingMouse = false; // 取消残留的「插入鼠标按键」捕获态
         _lastKeyTime = default;
         _recordingDownKeys.Clear();
         _recorder.Install();
@@ -1535,7 +1550,7 @@ public class AppViewModel : ObservableObject, IDisposable
         if (_editingMacro != null) MarkMacroDirty();
     }
 
-    /// <summary>插入按键：进入「请按键…」捕获态，下一个按键（不含 Esc）插入为「按下」动作。</summary>
+    /// <summary>插入键盘按键：进入「请按键…」捕获态，下一个键盘按键（不含 Esc）插入为「按下」动作。</summary>
     public void InsertKey()
     {
         if (_editingMacro == null) return;
@@ -1544,7 +1559,22 @@ public class AppViewModel : ObservableObject, IDisposable
             ShowToast("录制中无法插入按键，请先停止录制");
             return;
         }
+        IsCapturingMouse = false;
         IsCapturingKey = true;
+        _recorder.Install();
+    }
+
+    /// <summary>插入鼠标按键：进入「请按键…」捕获态，下一个鼠标按键（不含 Esc）插入为「按下」动作。</summary>
+    public void InsertMouse()
+    {
+        if (_editingMacro == null) return;
+        if (IsRecording)
+        {
+            ShowToast("录制中无法插入鼠标按键，请先停止录制");
+            return;
+        }
+        IsCapturingKey = false;
+        IsCapturingMouse = true;
         _recorder.Install();
     }
 
@@ -1554,15 +1584,17 @@ public class AppViewModel : ObservableObject, IDisposable
         _recorder.Uninstall();
         IsRecording = false;
         IsCapturingKey = false;
+        IsCapturingMouse = false;
         _recordingDownKeys.Clear();
     }
 
     private void OnKeyEvent(byte hid, bool down)
     {
-        // 仅「插入按键」捕获态下 Esc（HID 41）表示取消；录制态不再用 Esc 结束，Esc 作为普通按键入列
-        if (hid == 41 && IsCapturingKey)
+        // 任一「插入」捕获态下 Esc（HID 41）都表示取消；录制态不再用 Esc 结束，Esc 作为普通按键入列
+        if (hid == 41 && (IsCapturingKey || IsCapturingMouse))
         {
             IsCapturingKey = false;
+            IsCapturingMouse = false;
             _recorder.Uninstall();
             return;
         }
@@ -1573,7 +1605,9 @@ public class AppViewModel : ObservableObject, IDisposable
             AddAction(new MacroAction { Code = hid, Press = true });
             return;
         }
-        if (!IsRecording) return;
+        // 鼠标捕获态下忽略键盘按键（Esc 已在上面处理），继续等待鼠标点击
+        if (IsCapturingMouse && !IsRecording) return;
+        if (!IsRecording && !IsCapturingKey) return;
         // 录制：按下/抬起都入列；相邻事件间隔 → 前一个动作的延迟（设备实际，10..635ms 按 5 取整）
         // 达步数上限后，下一个「按下」自动停止录制（防无限追加）；抬起仍正常入列
         if (down && EditingActions.Count >= MaxMacroActions)
@@ -1589,6 +1623,36 @@ public class AppViewModel : ObservableObject, IDisposable
             ? 0
             : MacroActionItem.NormalizeDelay((int)(now - _lastKeyTime).TotalMilliseconds);
         AddAction(new MacroAction { Code = hid, Press = down, DelayMs = delay });
+        _lastKeyTime = now;
+    }
+
+    private void OnMouseEvent(byte code, bool down)
+    {
+        // 鼠标捕获态：下一个鼠标按键（不含 Esc，Esc 已在 OnKeyEvent 处理）插入为「按下」动作
+        if (IsCapturingMouse && down)
+        {
+            IsCapturingMouse = false;
+            _recorder.Uninstall();
+            AddAction(new MacroAction { Code = code, Press = true });
+            return;
+        }
+        // 键盘捕获态下忽略鼠标按键，继续等待键盘
+        if (IsCapturingKey && !IsRecording) return;
+        if (!IsRecording && !IsCapturingMouse) return;
+        // 录制：鼠标按下/抬起都入列（与键盘同一套延迟与步数上限逻辑）
+        if (down && EditingActions.Count >= MaxMacroActions)
+        {
+            StopRecord();
+            NotifyMacroCap();
+            return;
+        }
+        if (down) _recordingDownKeys.Add(code);
+        else _recordingDownKeys.Remove(code);
+        var now = DateTime.Now;
+        int delay = _lastKeyTime == default
+            ? 0
+            : MacroActionItem.NormalizeDelay((int)(now - _lastKeyTime).TotalMilliseconds);
+        AddAction(new MacroAction { Code = code, Press = down, DelayMs = delay });
         _lastKeyTime = now;
     }
 
@@ -1677,6 +1741,7 @@ public class AppViewModel : ObservableObject, IDisposable
     public RelayCommand ExportMacroCmd { get; }
     public RelayCommand RecordToggleCmd { get; }
     public RelayCommand InsertKeyCmd { get; }
+    public RelayCommand InsertMouseCmd { get; }
     public RelayCommand ClearActionsCmd { get; }
 
     /// <summary>选中按钮命令（参数 = 按钮 Index）。</summary>

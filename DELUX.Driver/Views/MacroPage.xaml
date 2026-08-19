@@ -1,6 +1,7 @@
 <Page x:Class="DeluxDriver.MacroPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:dd="urn:gong-wpf-dragdrop"
       Title="快捷指令">
 
     <Page.Resources>
@@ -33,9 +34,9 @@
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
         </Style>
 
-        <!-- ListViewItem：无默认缩进，选中轻填充，hover 浅底色（WPF-UI 标准做法） -->
+        <!-- ListViewItem：选中 = 浅填充 + 左侧 3px 强调色竖条（DESIGN.md §5.13 选中模式）；hover = 同级浅填充。
+             关键修复：原选中态用 TertiaryBrush(6%) 竟比 hover 的 SecondaryBrush(9%) 还淡，反直觉。现选中与 hover 同级填充并加蓝条。 -->
         <Style x:Key="MacroItemContainerStyle" TargetType="ListViewItem">
-            <Setter Property="Padding" Value="6,2" />
             <Setter Property="Margin" Value="0,1" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Background" Value="Transparent" />
@@ -44,16 +45,20 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
                         <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                BorderThickness="0" Padding="{TemplateBinding Padding}"
-                                CornerRadius="4" SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                                BorderThickness="0" CornerRadius="4" SnapsToDevicePixels="True">
+                            <Grid>
+                                <Border x:Name="Accent" Width="3" HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}" CornerRadius="2" Visibility="Collapsed" />
+                                <ContentPresenter Margin="9,4,4,4" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                            </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                <Setter TargetName="Accent" Property="Visibility" Value="Visible" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -61,25 +66,24 @@
             </Setter>
         </Style>
 
-        <!-- 动作行：常显浅底（无描边）+ 选中变深 -->
+        <!-- 动作行：卡片式（描边 + 卡片底色）+ hover/选中加深 -->
         <Style x:Key="ActionRowStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="{DynamicResource ControlStrokeThickness}" />
+            <Setter Property="Padding" Value="8,5" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
                 </Trigger>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
-                </DataTrigger>
             </Style.Triggers>
         </Style>
     </Page.Resources>
 
     <Grid>
-        <Border Style="{DynamicResource CardStyle}">
+        <Border Style="{DynamicResource CardStyle}" Background="Transparent" Padding="0" ClipToBounds="True">
             <!-- 本页不设页面标题/副标题（用户规格：让位给下方内容；其余页面保留） -->
             <!-- 顶层叠放：空态与两列内容互斥显示（无宏→居中空态，有宏→正常两栏） -->
             <Grid>
@@ -88,7 +92,7 @@
                     <TextBlock Text="暂无快捷指令" Style="{DynamicResource PageTitleTextStyle}" HorizontalAlignment="Center" />
                     <TextBlock Text="点击下方按钮创建你的第一个快捷指令" Style="{DynamicResource PageSubtitleTextStyle}" HorizontalAlignment="Center" Margin="{DynamicResource MarginTop8}" />
                     <Button Content="新建快捷指令" Style="{StaticResource PrimaryButtonStyle}" Padding="{DynamicResource PaddingX16Y8}" Margin="{DynamicResource MarginTop16}"
-                            Command="{Binding NewMacroCmd}" />
+                            Click="NewMacro_Click" />
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -123,25 +127,30 @@
                     </Grid.Style>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="232" />
-                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="1" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                <!-- ===== 左栏：快捷指令列表（不用卡片，ListView 单选） ===== -->
-                <!-- 左栏 Grid 双行：Row0=* 上部内容撑满剩余高度，Row1=Auto 导入/导出钉死在左栏最底边 -->
-                <!-- 编辑视图（HasEditingMacro）下左栏整体禁用 + 压暗，避免与右栏编辑态冲突 -->
-                <Grid Grid.Column="0"
-                      IsEnabled="{Binding HasEditingMacro, Converter={StaticResource BoolInverse}}">
-                    <Grid.Style>
-                        <Style TargetType="Grid">
-                            <Setter Property="Opacity" Value="1" />
+                <!-- ===== 左栏 surface：分栏卡左半，flush 贴格、无负 margin；编辑态才变灰（标准 split-card） ===== -->
+                <Border Grid.Column="0" IsHitTestVisible="False" CornerRadius="8,0,0,8">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasEditingMacro}" Value="True">
-                                    <Setter Property="Opacity" Value="0.45" />
+                                    <Setter Property="Background" Value="{DynamicResource PaneDimmedFillBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Grid.Style>
+                    </Border.Style>
+                </Border>
+
+                <!-- 1px 分隔线（替代原 16 空白列） -->
+                <Border Grid.Column="1" IsHitTestVisible="False"
+                        Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                <!-- 左栏内容（透明，叠在左栏 surface 之上；栏内自带 padding） -->
+                <Grid Grid.Column="0" Margin="{DynamicResource CardPadding}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
@@ -159,7 +168,7 @@
                                     <TextBlock Text="快捷指令列表" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Content="＋ 新建" Style="{StaticResource PrimaryButtonStyle}"
-                                            Padding="{DynamicResource PaddingX12Y6}" Command="{Binding NewMacroCmd}" />
+                                            Padding="{DynamicResource PaddingX12Y6}" Click="NewMacro_Click" />
                                 </Grid>
 
                                 <!-- 宏列表：ListView 单选，选中即进入编辑；hover 项显示删除 -->
@@ -188,19 +197,8 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding Name}" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
-                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                                        <!-- 已绑定徽章：该宏已被某按键引用 -->
-                                                        <Border Background="{DynamicResource AccentFillColorDefaultBrush}" CornerRadius="3"
-                                                                Padding="{DynamicResource PaddingX5Y1}" Margin="{DynamicResource MarginLeft5}" VerticalAlignment="Center"
-                                                                Visibility="{Binding IsBound, Converter={StaticResource BoolToVis}}">
-                                                            <TextBlock Text="已绑定" FontSize="{DynamicResource CaptionTextBlockFontSize}"
-                                                                       Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
-                                                        </Border>
-                                                    </StackPanel>
-                                                </StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                                                 <!-- hover 才显示删除（WPF-UI 标准：Opacity 触发器） -->
                                                 <Button Grid.Column="1" Content="删除" Padding="{DynamicResource PaddingX8Y3}"
                                                         Command="{Binding DataContext.DeleteMacroCmd, RelativeSource={RelativeSource AncestorType=Page}}"
@@ -238,9 +236,13 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- ===== 右栏 surface：分栏卡右半，白底活动面板（flush 贴格） ===== -->
+                <Border Grid.Column="2" IsHitTestVisible="False" CornerRadius="0,8,8,0"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+
                 <!-- ===== 右栏：编辑器 ===== -->
                 <!-- 固定区（关闭行 + 录制提示 + 播放方式）不参与滚动；下方动作列表独立滚动 -->
-                <Grid Grid.Column="2">
+                <Grid Grid.Column="2" Margin="{DynamicResource CardPadding}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -275,26 +277,12 @@
                                 <TextBox x:Name="MacroNameBox" Grid.Column="1" Margin="{DynamicResource MarginLeft8}"
                                          Text="{Binding EditingMacroName, UpdateSourceTrigger=PropertyChanged}"
                                          FontSize="{DynamicResource BodyLargeTextBlockFontSize}" FontWeight="SemiBold" Padding="{DynamicResource PaddingX8Y6}" MaxLength="20"
-                                         VerticalAlignment="Center"
-                                         GotFocus="MacroName_GotFocus" LostFocus="MacroName_LostFocus" />
+                                         VerticalAlignment="Center" />
                                 <StackPanel x:Name="MacroActionBar" Grid.Column="2" Orientation="Horizontal"
                                             Margin="{DynamicResource MarginLeft12}" VerticalAlignment="Center">
                                     <Button Style="{DynamicResource RecordButtonStyle}" MinWidth="96" Padding="{DynamicResource PaddingX12Y6}"
                                             Margin="{DynamicResource MarginRight8}" Content="{Binding RecordButtonText}"
                                             Command="{Binding RecordToggleCmd}" />
-                                    <!-- 插入按键：捕获下一个键入并插入「按下」动作；录制中隐藏（与原型 §4.4 一致） -->
-                                    <Button Padding="{DynamicResource PaddingX12Y6}" Margin="{DynamicResource MarginRight8}"
-                                            Content="{Binding InsertKeyButtonText}" Command="{Binding InsertKeyCmd}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
                                     <Button Content="复制" Style="{DynamicResource SecondaryButtonStyle}" Padding="{DynamicResource PaddingX12Y6}"
                                             Margin="{DynamicResource MarginRight8}" Command="{Binding CopyMacroCmd}"
                                             IsEnabled="{Binding IsRecording, Converter={StaticResource BoolInverse}}" />
@@ -308,22 +296,22 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- 播放方式：三选一横排 + 循环次数数值框（选中循环次数方式时显示在「循环次数」后） -->
-                            <Border Style="{DynamicResource CardStyle}" Padding="{DynamicResource CardPadding}" Margin="{DynamicResource MarginTop14}">
-                                <StackPanel Orientation="Horizontal" Margin="{DynamicResource MarginTop2}">
-                                    <RadioButton GroupName="PlayMethod" Margin="{DynamicResource MarginRight18}"
-                                                 Style="{DynamicResource FuncOptionRadioStyle}" Content="循环次数"
-                                                 IsChecked="{Binding EditingMethod, Converter={StaticResource IntToBool}, ConverterParameter=0}" />
-                                    <TextBox Width="80" Margin="{DynamicResource MarginRight18}" TextAlignment="Right" Padding="{DynamicResource PaddingX6Y3}"
+                            <!-- 播放方式：下拉选框 + 循环次数数值框（选中循环次数方式时显示） -->
+                            <Border Style="{DynamicResource CardStyle}" Padding="16,10" Margin="{DynamicResource MarginTop14}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="播放方式" VerticalAlignment="Center" Margin="0,0,8,0"
+                                               FontSize="{DynamicResource BodyTextBlockFontSize}"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <ComboBox Width="140" SelectedIndex="{Binding EditingMethod}"
+                                              VerticalAlignment="Center">
+                                        <ComboBoxItem Content="循环次数" />
+                                        <ComboBoxItem Content="任意键停止" />
+                                        <ComboBoxItem Content="按住循环" />
+                                    </ComboBox>
+                                    <TextBox Width="80" Margin="12,0,0,0" TextAlignment="Right" Padding="{DynamicResource PaddingX6Y3}"
                                              Text="{Binding EditingLoopCount, UpdateSourceTrigger=PropertyChanged}"
                                              Visibility="{Binding IsLoopCountEnabled, Converter={StaticResource BoolToVis}}"
                                              MaxLength="3" PreviewTextInput="DigitsOnly_PreviewTextInput" />
-                                    <RadioButton GroupName="PlayMethod" Margin="{DynamicResource MarginRight18}"
-                                                 Style="{DynamicResource FuncOptionRadioStyle}" Content="任意键停止"
-                                                 IsChecked="{Binding EditingMethod, Converter={StaticResource IntToBool}, ConverterParameter=1}" />
-                                    <RadioButton GroupName="PlayMethod"
-                                                 Style="{DynamicResource FuncOptionRadioStyle}" Content="按住循环"
-                                                 IsChecked="{Binding EditingMethod, Converter={StaticResource IntToBool}, ConverterParameter=2}" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -338,7 +326,10 @@
 
                                 <!-- 动作行 -->
                                 <Grid>
-                                <ItemsControl x:Name="ActionList" ItemsSource="{Binding EditingActions}" Margin="0,2,0,0">
+                                <ItemsControl x:Name="ActionList" ItemsSource="{Binding EditingActions}" Margin="0,2,0,0"
+                                    dd:DragDrop.IsDragSource="True"
+                                    dd:DragDrop.IsDropTarget="True"
+                                    dd:DragDrop.UseDefaultDragAdorner="True">
                                     <ItemsControl.Style>
                                         <Style TargetType="ItemsControl">
                                             <Setter Property="Visibility" Value="Visible" />
@@ -354,38 +345,51 @@
                                             <Border Style="{StaticResource ActionRowStyle}" Margin="{DynamicResource ActionRowGap}"
                                                     MouseLeftButtonUp="Row_MouseUp">
                                                 <DockPanel LastChildFill="True">
-                                                    <!-- 拖拽手柄（行首，Thumb 手势不触发点击选中） -->
-                                                    <Thumb x:Name="DragHandle" DockPanel.Dock="Left" Width="20" Cursor="SizeNS"
-                                                           ToolTip="拖动排序" Margin="0,0,8,0"
-                                                           DragStarted="DragHandle_DragStarted"
-                                                           DragDelta="DragHandle_DragDelta"
-                                                           DragCompleted="DragHandle_DragCompleted">
-                                                        <Thumb.Template>
-                                                            <ControlTemplate TargetType="Thumb">
-                                                                <TextBlock Text="&#xE76F;" Style="{DynamicResource IconStyle}"
-                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                            </ControlTemplate>
-                                                        </Thumb.Template>
-                                                    </Thumb>
+                                                    <!-- 拖拽手柄图标（2×3 圆点网格，视觉提示，实际拖拽由 GongSolutions 管理） -->
+                                                    <TextBlock DockPanel.Dock="Left" Width="20" Text="&#xE946;" Style="{DynamicResource IconStyle}"
+                                                               ToolTip="拖动排序" Margin="0,0,8,0"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               IsHitTestVisible="False" />
 
                                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <Button Style="{DynamicResource SecondaryButtonStyle}" Padding="{DynamicResource PaddingX8Y2}"
+                                                        <Button Style="{DynamicResource IconButtonStyle}"
                                                                 ToolTip="删除此动作" Click="Delete_Click">
-                                                            <TextBlock Text="&#xE74D;" Style="{DynamicResource IconStyle}" />
+                                                            <TextBlock Text="&#xE74D;" FontSize="14" VerticalAlignment="Center"
+                                                                       FontFamily="{DynamicResource SymbolThemeFontFamily}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource IconStyle}">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
                                                         </Button>
                                                     </StackPanel>
 
                                                     <Grid VerticalAlignment="Center">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="72" />
+                                                            <ColumnDefinition Width="80" />
+                                                            <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="110" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="{Binding KeyName}" FontSize="{DynamicResource BodyTextBlockFontSize}" VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                                        <Button Grid.Column="1" Content="{Binding PressText}" Padding="{DynamicResource PaddingX8Y2}"
-                                                                Style="{DynamicResource SecondaryButtonStyle}" Click="Toggle_Click" />
+                                                        <TextBox Text="{Binding KeyName, Mode=OneWay}" FontSize="{DynamicResource BodyTextBlockFontSize}"
+                                                                 VerticalAlignment="Center" Padding="{DynamicResource PaddingX6Y3}" MaxLength="12"
+                                                                 Cursor="IBeam"
+                                                                 KeyDown="KeyName_KeyDown"
+                                                                 LostFocus="KeyName_LostFocus" />
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <RadioButton Content="按下" Margin="0,0,4,0"
+                                                                         Style="{DynamicResource FuncOptionRadioStyle}"
+                                                                         IsChecked="{Binding Press}" />
+                                                            <RadioButton Content="释放"
+                                                                         Style="{DynamicResource FuncOptionRadioStyle}"
+                                                                         IsChecked="{Binding Press, Converter={StaticResource BoolInverse}}" />
+                                                        </StackPanel>
                                                         <TextBox Grid.Column="2" Width="96" TextAlignment="Right" Padding="{DynamicResource PaddingX6Y3}"
                                                                  Text="{Binding DelayMs, UpdateSourceTrigger=PropertyChanged}"
                                                                  MaxLength="3" PreviewTextInput="DigitsOnly_PreviewTextInput" />
@@ -395,20 +399,35 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <!-- 拖拽插入指示线（圆角强调色，目标位置显示） -->
-                                <Border x:Name="DropLine" Height="3" CornerRadius="2" IsHitTestVisible="False"
-                                        Background="{DynamicResource SystemFillColorCautionBrush}"
-                                        Margin="4,0" VerticalAlignment="Top" Visibility="Collapsed" />
                                 </Grid>
 
-                                <!-- 拖拽 ghost：半透明副本跟随指针 -->
-                                <Popup x:Name="DragGhost" Placement="Relative" IsHitTestVisible="False"
-                                       AllowsTransparency="True" Visibility="Collapsed">
-                                    <Border x:Name="DragGhostBorder" CornerRadius="4" Opacity="0.85"
-                                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
-                                            BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}"
-                                            BorderThickness="1" />
-                                </Popup>
+                                <!-- 插入：捕获下一个键/鼠标按键并插入「按下」动作；位于动作序列最后一条下方；录制中隐藏 -->
+                                <StackPanel Orientation="Horizontal" Margin="{DynamicResource MarginTop12}">
+                                    <Button Padding="{DynamicResource PaddingX12Y6}" Margin="{DynamicResource MarginRight8}"
+                                            Content="{Binding InsertKeyButtonText}" Command="{Binding InsertKeyCmd}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Padding="{DynamicResource PaddingX12Y6}"
+                                            Content="{Binding InsertMouseButtonText}" Command="{Binding InsertMouseCmd}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
 
                             </StackPanel>
                         </ScrollViewer>
