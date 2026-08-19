@@ -31,7 +31,12 @@ public partial class App : Application
             if (src == light || src == dark)
                 Current.Resources.MergedDictionaries.RemoveAt(i);
         }
-        Current.Resources.MergedDictionaries.Insert(0, dict);
+        // 必须 Add 到末尾（不能用 Insert(0)）：WPF 对 MergedDictionaries 是**从后往前**查找，
+        // 最后合并的字典优先级最高。主题字典放在末尾才能覆盖 PresentationFramework.Fluent
+        // 内置主题的同名语义画笔（TextFill/ControlFill/Stroke 等），否则深色模式只有窗口背景
+        // 变黑、其余控件仍用 Fluent 的浅色值（对应 WPF 源码 ResourceDictionary.cs 中
+        // for (i = MergedDictionaries.Count - 1; i > -1; i--) 的查找顺序）。
+        Current.Resources.MergedDictionaries.Add(dict);
     }
 
     public App()

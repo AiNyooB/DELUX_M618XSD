@@ -14,6 +14,360 @@
         <Setter Property="Padding" Value="{DynamicResource CardPadding}" />
     </Style>
 
+    <!-- ── 改键页「功能选项」列表项：RadioButton 列表（鼠标操作 / 宏 Tab）
+         1:1 复刻 WPF-UI（wpfui-main/.../Controls/RadioButton/RadioButton.xaml）的触发逻辑与动画参数，
+         仅将其私有令牌映射到本项目语义令牌；不擅自增删任何行为。
+         映射：RadioButtonOuterEllipseFillPointerOver→SubtleFillColorTertiaryBrush；
+              RadioButtonOuterEllipseFillPressed→SubtleFillColorTertiaryBrush；
+              RadioButtonOuterEllipseStrokePressed/CheckedStrokePointerOver→ControlStrongStrokeColorDefaultBrush；
+              Background(选中 hover)→ControlFillColorSecondaryBrush（控件自身背景，非整行卡片）。
+         关键约束：Storyboard 内绝不含 DynamicResource（否则 Style.Seal 冻结失败崩溃），
+         故颜色一律用 Setter，动画只对白点 ScaleTransform 做纯 double DoubleAnimation。 -->
+    <Style x:Key="FuncOptionRadioStyle" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Row" Background="{TemplateBinding Background}"
+                            BorderThickness="{DynamicResource ControlStrokeThickness}"
+                            BorderBrush="Transparent"
+                            CornerRadius="{DynamicResource ControlCornerRadius}"
+                            Padding="8,6" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid Grid.Column="0" Width="20" Height="20" Margin="0,0,8,0"
+                                  VerticalAlignment="Center">
+                                <Ellipse x:Name="OuterEllipse" Width="20" Height="20"
+                                         Fill="Transparent"
+                                         Stroke="{DynamicResource ControlStrongStrokeColorDefaultBrush}"
+                                         StrokeThickness="1" />
+                                <Ellipse x:Name="CheckOuterEllipse" Width="20" Height="20"
+                                         Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                         Stroke="{DynamicResource AccentFillColorDefaultBrush}"
+                                         StrokeThickness="1" Opacity="0" />
+                                <Ellipse x:Name="CheckGlyph" Width="11" Height="11"
+                                         Fill="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                         Opacity="0">
+                                    <Ellipse.LayoutTransform>
+                                        <ScaleTransform ScaleX="1.0" ScaleY="1.0" />
+                                    </Ellipse.LayoutTransform>
+                                </Ellipse>
+                            </Grid>
+
+                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <!-- 选中 + 悬停：白点放大到 1.2（WPF-UI 原值 1.2，Enter 167ms / Exit Duration=0 瞬回）；
+                             并改外环填充 + 控件背景；StopStoryboard 防与按下态动画打架。 -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="OuterEllipse" Property="Fill"
+                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                            <Setter TargetName="Row" Property="Background"
+                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            <MultiTrigger.EnterActions>
+                                <StopStoryboard BeginStoryboardName="IsPressedEnlarge" />
+                                <StopStoryboard BeginStoryboardName="IsPressedReduce" />
+                                <StopStoryboard BeginStoryboardName="IsPressedUndo" />
+                                <BeginStoryboard Name="IsMouseOverEnlarge">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleY)"
+                                            To="1.2" Duration="00:00:00.167" />
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleX)"
+                                            To="1.2" Duration="00:00:00.167" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="IsPressedEnlarge" />
+                                <StopStoryboard BeginStoryboardName="IsPressedReduce" />
+                                <StopStoryboard BeginStoryboardName="IsPressedUndo" />
+                                <BeginStoryboard Name="IsMouseOverReduce">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleY)"
+                                            To="1.0" Duration="0" />
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleX)"
+                                            To="1.0" Duration="0" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <!-- 未选中 + 按下：白点显示 + 外环 pressed 色 + 白点 0.7→1.0 弹入 -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsChecked" Value="False" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="CheckGlyph" Property="Opacity" Value="1.0" />
+                            <Setter TargetName="OuterEllipse" Property="Fill"
+                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                            <Setter TargetName="OuterEllipse" Property="Stroke"
+                                    Value="{DynamicResource ControlStrongStrokeColorDefaultBrush}" />
+                            <MultiTrigger.EnterActions>
+                                <StopStoryboard BeginStoryboardName="IsMouseOverReduce" />
+                                <StopStoryboard BeginStoryboardName="IsMouseOverEnlarge" />
+                                <StopStoryboard BeginStoryboardName="IsPressedReduce" />
+                                <StopStoryboard BeginStoryboardName="IsPressedUndo" />
+                                <BeginStoryboard Name="IsPressedEnlarge">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleY)"
+                                            From="0.7" To="1.0" Duration="00:00:00.167" />
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleX)"
+                                            From="0.7" To="1.0" Duration="00:00:00.167" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                        </MultiTrigger>
+
+                        <!-- 选中 + 按下：白点 1.2→0.95（Enter）/ Exit 0.95→1.2 -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsChecked" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <StopStoryboard BeginStoryboardName="IsMouseOverReduce" />
+                                <StopStoryboard BeginStoryboardName="IsMouseOverEnlarge" />
+                                <StopStoryboard BeginStoryboardName="IsPressedEnlarge" />
+                                <BeginStoryboard Name="IsPressedReduce">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleY)"
+                                            From="1.2" To=".95" Duration="00:00:00.167" />
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleX)"
+                                            From="1.2" To=".95" Duration="00:00:00.167" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard Name="IsPressedUndo">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleY)"
+                                            To="1.2" Duration="00:00:00.167" />
+                                        <DoubleAnimation Storyboard.TargetName="CheckGlyph"
+                                            Storyboard.TargetProperty="(Ellipse.LayoutTransform).(ScaleTransform.ScaleX)"
+                                            To="1.2" Duration="00:00:00.167" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <!-- 选中：白点显示 + 外环隐藏 + 选中外环显示（与 WPF-UI 一致） -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckGlyph" Property="Opacity" Value="1.0" />
+                            <Setter TargetName="OuterEllipse" Property="Opacity" Value="0.0" />
+                            <Setter TargetName="CheckOuterEllipse" Property="Opacity" Value="1.0" />
+                        </Trigger>
+
+                        <!-- 未选中 + 悬停：仅改外环填充（WPF-UI 原文第 233-240 行，无整行背景） -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="False" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="OuterEllipse" Property="Fill"
+                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                        </MultiTrigger>
+
+                        <!-- 禁用（未选中）：前景 + 外环色弱化 -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="False" />
+                                <Condition Property="IsEnabled" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                            <Setter TargetName="OuterEllipse" Property="Fill" Value="Transparent" />
+                            <Setter TargetName="OuterEllipse" Property="Stroke"
+                                    Value="{DynamicResource ControlStrongStrokeColorDisabledBrush}" />
+                        </MultiTrigger>
+
+                        <!-- 禁用（选中）：前景 + 白点/选中外环降透明度 -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True" />
+                                <Condition Property="IsEnabled" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                            <Setter TargetName="OuterEllipse" Property="Fill" Value="Transparent" />
+                            <Setter TargetName="OuterEllipse" Property="Stroke"
+                                    Value="{DynamicResource AccentFillColorDisabledBrush}" />
+                            <Setter TargetName="CheckGlyph" Property="Opacity" Value="0.7" />
+                            <Setter TargetName="CheckOuterEllipse" Property="Opacity" Value="0.7" />
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── DPI 档位卡片：整卡可点 = 设为当前（RadioButton 样式化）───────── -->
+    <!-- 选中态：强调色描边；非法态：红框 + tooltip。卡片内部 色条/数值/启用 各自拦截点击，不误触切档。 -->
+    <Style x:Key="DpiCardRadioStyle" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <!-- ⚠️ 卡片颜色一律放 Style Setter，不能放模板属性（本地值）：
+                         WPF 属性优先级「本地值 > Style 触发器」，触发器改描边/背景/红框都会被本地值压住。 -->
+                    <Border x:Name="Card" Padding="12" CornerRadius="{DynamicResource CardCornerRadius}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                                <Setter Property="BorderThickness" Value="{DynamicResource ControlStrokeThickness}" />
+                                <Style.Triggers>
+                                    <!-- 悬停：仿 WPF-UI 按钮 hover——背景用 ControlFillColorSecondary（浅色=50%白，
+                                         白底上几乎无感），描边用 ControlStrokeColorSecondary 轻微加深提示可点，不做重背景 -->
+                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+                                    </DataTrigger>
+                                    <!-- 当前档：强调色描边 -->
+                                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        <Setter Property="BorderThickness" Value="1.5" />
+                                    </DataTrigger>
+                                    <!-- 数值非法：红框 + tooltip（优先级高，后声明覆盖） -->
+                                    <DataTrigger Binding="{Binding HasError}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        <Setter Property="BorderThickness" Value="1.5" />
+                                        <Setter Property="ToolTip" Value="请输入 40-4800 且为 40 的倍数" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <ContentPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 改键页按钮标签：整块可点 = 选中（RadioButton 样式化）────────── -->
+    <!-- 选中：强调色描边；hover：浅色背景。颜色放 Style Setter（本地值会压触发器，见 DpiCardRadioStyle 注释）。 -->
+    <Style x:Key="ButtonTagStyle" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Tag" Padding="8,4" CornerRadius="{DynamicResource ControlCornerRadius}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                        <Setter Property="BorderThickness" Value="1.5" />
+                                        <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <ContentPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 改键页「鼠标操作」Tab：ListView 单选列表（替代 RadioButton 组）
+         按 WPF-UI / Fluent 列表项范式：整行可点、无圆点、选中态清晰、hover 浅色背景。
+         选中行背景=SubtleFillColorSecondaryBrush，文字=TextFillColorPrimaryBrush；
+         hover=ControlAltFillColorSecondaryBrush；pressed 略深；禁用态降透明。 -->
+    <Style x:Key="FuncOptionListStyle" TargetType="ListView">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="SelectionMode" Value="Single" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Padding" Value="10,4" />
+                    <Setter Property="Margin" Value="0,1" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListViewItem">
+                                <Border x:Name="Row" Background="{TemplateBinding Background}"
+                                        BorderThickness="{DynamicResource ControlStrokeThickness}"
+                                        BorderBrush="Transparent"
+                                        CornerRadius="{DynamicResource ControlCornerRadius}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlAltFillColorSecondaryBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                                    </Trigger>
+                                    <MultiTrigger>
+                                        <MultiTrigger.Conditions>
+                                            <Condition Property="IsSelected" Value="True" />
+                                            <Condition Property="IsMouseOver" Value="True" />
+                                        </MultiTrigger.Conditions>
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    </MultiTrigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter TargetName="Row" Property="Background" Value="Transparent" />
+                                        <Setter Property="Opacity" Value="0.5" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ── Segoe MDL2 / Fluent 图标文本块 ───────────────────────────────── -->
     <Style x:Key="IconStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{DynamicResource SymbolThemeFontFamily}" />
@@ -106,14 +460,6 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
-    <!-- ── 文字按钮（图标 + 文案，原生 WPF 按钮） ───────────────────────── -->
-    <Style x:Key="TextButtonStyle" TargetType="Button">
-        <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
-        <Setter Property="FontSize" Value="{DynamicResource BodyTextBlockFontSize}" />
-        <Setter Property="Padding" Value="12,6" />
-        <Setter Property="Cursor" Value="Hand" />
-    </Style>
-
     <!-- ── 主要操作按钮（品牌色，Fluent AccentButtonStyle 的样式化扩展） ── -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
         <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
@@ -146,6 +492,417 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- ── 次要操作按钮（标准按钮：浅填充 + 1px 描边，与 PrimaryButtonStyle 同尺寸、同模板结构，
+         用于弹窗「取消」等次级动作） ─────────────────── -->
+    <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+        <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="{DynamicResource BodyTextBlockFontSize}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ControlStrokeThickness}" />
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{DynamicResource ControlCornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorDisabledBrush}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 下拉选择框（ComboBox，Fluent 风格自定义模板） ──────────────────
+         背景：WPF 内置 Fluent 主题的 ComboBox 有两个已知视觉缺陷——
+           ① 弹层背景用 Acrylic 半透明色（深色主题下透出桌面）＝「透明层」；
+           ② 弹层 1.5px 深色描边 + item 间 3px 缝隙 → item 周围显「黑边」。
+         本套样式按官方模板结构重写，保留全部功能部件（PART_ContentPresenter /
+         ToggleButton / PART_Popup / PART_EditableTextBox / IsEditable 切换），
+         仅替换视觉层：不透明弹层、1px 卡片描边、item 无缝隙 hover 高亮。
+         对照源码：wpf-main/src/Microsoft.DotNet.Wpf/src/Themes/PresentationFramework.Fluent/
+         Themes/Fluent.Light.xaml（DefaultComboBoxItemStyle:1563 /
+         DefaultComboBoxTemplate:1599 / EditableComboBoxTemplate:1695 /
+         DefaultComboBoxStyle:1804）。
+         隐式样式（无 x:Key）：合并进 App.xaml 后自动覆盖 Fluent 主题默认样式，
+         全站所有 ComboBox / ComboBoxItem 生效。
+         ────────────────────────────────────────────────────────────────── -->
+
+    <!-- ── ComboBox 下拉项（隐式，覆盖 Fluent 默认） ───────────────────── -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="Border.CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ContentBorder" Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding Border.CornerRadius}" SnapsToDevicePixels="True">
+                        <Grid>
+                            <ContentPresenter x:Name="PART_ContentPresenter" Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center" />
+                            <!-- 选中态左侧强调竖条（Fluent 选中标记，仅在下拉内可见） -->
+                            <Rectangle x:Name="ActiveRectangle" Width="3" Height="16" Margin="5,0"
+                                       HorizontalAlignment="Left" VerticalAlignment="Center"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                       RadiusX="2" RadiusY="2" Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ContentBorder" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="ActiveRectangle" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── ComboBox 编辑态输入框（内部样式，仅编辑态模板使用） ──────────── -->
+    <Style x:Key="ComboBoxTextBoxStyle" TargetType="TextBox">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Hidden" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="IBeam" />
+        <Setter Property="AllowDrop" Value="True" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBoxBase">
+                    <Grid>
+                        <Border x:Name="ContentBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" />
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="1" Padding="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center"
+                                      TextElement.Foreground="{TemplateBinding Foreground}"
+                                      HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── ComboBox 非编辑态模板（对齐官方 DefaultComboBoxTemplate） ────── -->
+    <ControlTemplate x:Key="DefaultComboBoxTemplate" TargetType="ComboBox">
+        <Grid x:Name="LayoutGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="38" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="ContentBorder" Grid.ColumnSpan="2"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{TemplateBinding Border.CornerRadius}" />
+            <ContentPresenter x:Name="PART_ContentPresenter"
+                              Content="{TemplateBinding SelectionBoxItem}"
+                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                              Margin="{TemplateBinding Padding}"
+                              TextElement.Foreground="{TemplateBinding Foreground}"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"
+                              IsHitTestVisible="False" />
+            <!-- 全区域开合热区：透明 ToggleButton 覆盖整个控件（与官方一致，直接引用官方 keyed 样式，
+                 鼠标点击开合依赖此按钮的 OnClick→IsChecked→IsDropDownOpen 链路，勿改为内联模板） -->
+            <ToggleButton x:Name="ToggleButton" Grid.ColumnSpan="2" Focusable="False"
+                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                          Style="{StaticResource DefaultComboBoxToggleButtonStyle}" />
+            <TextBlock x:Name="ChevronIcon" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5"
+                       FontFamily="{DynamicResource SymbolThemeFontFamily}" FontSize="10" Text="&#xE70D;"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                <TextBlock.RenderTransform>
+                    <RotateTransform Angle="0" />
+                </TextBlock.RenderTransform>
+            </TextBlock>
+            <Popup x:Name="PART_Popup" AllowsTransparency="True"
+                   Focusable="False" IsOpen="{TemplateBinding IsDropDownOpen}"
+                   Placement="{TemplateBinding Popup.Placement}"
+                   PopupAnimation="{TemplateBinding Popup.PopupAnimation}"
+                   VerticalOffset="1">
+                <Border x:Name="DropDownBorder" MinWidth="{TemplateBinding ActualWidth}" Padding="0,4,0,6"
+                        Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource PopupCornerRadius}"
+                        UseLayoutRounding="True" Margin="30,0,30,30">
+                    <Border.RenderTransform>
+                        <TranslateTransform />
+                    </Border.RenderTransform>
+                    <Grid>
+                        <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" SnapsToDevicePixels="True"
+                                      HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
+                                      TextElement.FontSize="{TemplateBinding FontSize}"
+                                      TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                      TextElement.Foreground="{TemplateBinding Foreground}">
+                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                        </ScrollViewer>
+                    </Grid>
+                    <Border.Effect>
+                        <!-- 阴影参数对照 WPF-UI（lepoco/wpfui ComboBox.xaml）成熟实现：
+                             Opacity 0.135 + ShadowDepth 10 + 非纯黑 #202020，更接近 WinUI 柔和环境阴影；
+                             配合 Margin 30,0,30,30 给阴影留窗口空间（顶部 0 保持贴紧组合框）。 -->
+                        <DropShadowEffect BlurRadius="20" Direction="270" Opacity="0.135" ShadowDepth="10" Color="#202020" />
+                    </Border.Effect>
+                </Border>
+            </Popup>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsDropDownOpen" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <!-- 167ms 与 DesignTokens.ControlFastAnimationDuration 对齐（动画内用字面量） -->
+                            <DoubleAnimation Storyboard.TargetName="ChevronIcon" Storyboard.TargetProperty="(TextBlock.RenderTransform).(RotateTransform.Angle)"
+                                             From="0" To="180" Duration="00:00:00.167" />
+                            <DoubleAnimation Storyboard.TargetName="DropDownBorder" Storyboard.TargetProperty="(Border.RenderTransform).(TranslateTransform.Y)"
+                                             From="-90" To="0" Duration="00:00:00.167">
+                                <DoubleAnimation.EasingFunction>
+                                    <CircleEase EasingMode="EaseOut" />
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="ChevronIcon" Storyboard.TargetProperty="(TextBlock.RenderTransform).(RotateTransform.Angle)"
+                                             From="180" To="0" Duration="00:00:00.167" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="HasItems" Value="False">
+                <Setter TargetName="DropDownBorder" Property="MinHeight" Value="32" />
+            </Trigger>
+            <Trigger SourceName="PART_Popup" Property="Popup.AllowsTransparency" Value="False">
+                <Setter TargetName="DropDownBorder" Property="CornerRadius" Value="0" />
+            </Trigger>
+            <Trigger Property="IsGrouping" Value="True">
+                <Setter Property="ScrollViewer.CanContentScroll" Value="False" />
+            </Trigger>
+            <!-- PointerOver（悬停） -->
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ContentBorder" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter TargetName="ContentBorder" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+                <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Trigger>
+            <!-- Pressed（按下） -->
+            <Trigger SourceName="ToggleButton" Property="IsPressed" Value="True">
+                <Setter TargetName="ContentBorder" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                <Setter TargetName="ContentBorder" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+                <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Trigger>
+            <!-- Disabled（禁用） -->
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="ContentBorder" Property="Background" Value="{DynamicResource ControlFillColorDisabledBrush}" />
+                <Setter TargetName="ContentBorder" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                <Setter TargetName="PART_ContentPresenter" Property="TextElement.Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- ── ComboBox 编辑态模板（对齐官方 EditableComboBoxTemplate） ────── -->
+    <ControlTemplate x:Key="EditableComboBoxTemplate" TargetType="ComboBox">
+        <Grid x:Name="LayoutGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="38" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="ContentBorder" Grid.ColumnSpan="2"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{TemplateBinding Border.CornerRadius}" />
+            <TextBox x:Name="PART_EditableTextBox" Grid.ColumnSpan="2" Padding="11,5,38,6"
+                     Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}"
+                     IsReadOnly="{TemplateBinding IsReadOnly}"
+                     Style="{StaticResource ComboBoxTextBoxStyle}" />
+            <Border x:Name="DropDownOverlay" Grid.Column="1" Margin="4" Width="30"
+                    Background="Transparent" CornerRadius="{DynamicResource ControlCornerRadius}" />
+            <ToggleButton x:Name="ToggleButton" Grid.Column="1" Margin="4" Focusable="False"
+                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                          Style="{StaticResource DefaultComboBoxToggleButtonStyle}" />
+            <TextBlock x:Name="ChevronIcon" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5"
+                       FontFamily="{DynamicResource SymbolThemeFontFamily}" FontSize="10" Text="&#xE70D;"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                <TextBlock.RenderTransform>
+                    <RotateTransform Angle="0" />
+                </TextBlock.RenderTransform>
+            </TextBlock>
+            <Popup x:Name="PART_Popup" AllowsTransparency="True"
+                   Focusable="False" IsOpen="{TemplateBinding IsDropDownOpen}"
+                   Placement="{TemplateBinding Popup.Placement}"
+                   PopupAnimation="{TemplateBinding Popup.PopupAnimation}"
+                   VerticalOffset="1">
+                <Border x:Name="DropDownBorder" MinWidth="{TemplateBinding ActualWidth}" Padding="0,4,0,6"
+                        Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource PopupCornerRadius}"
+                        UseLayoutRounding="True" Margin="30,0,30,30">
+                    <Border.RenderTransform>
+                        <TranslateTransform />
+                    </Border.RenderTransform>
+                    <Grid>
+                        <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" SnapsToDevicePixels="True"
+                                      HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
+                                      TextElement.FontSize="{TemplateBinding FontSize}"
+                                      TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                      TextElement.Foreground="{TemplateBinding Foreground}">
+                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                        </ScrollViewer>
+                    </Grid>
+                    <Border.Effect>
+                        <!-- 阴影参数对照 WPF-UI（lepoco/wpfui ComboBox.xaml）成熟实现：
+                             Opacity 0.135 + ShadowDepth 10 + 非纯黑 #202020，更接近 WinUI 柔和环境阴影；
+                             配合 Margin 30,0,30,30 给阴影留窗口空间（顶部 0 保持贴紧组合框）。 -->
+                        <DropShadowEffect BlurRadius="20" Direction="270" Opacity="0.135" ShadowDepth="10" Color="#202020" />
+                    </Border.Effect>
+                </Border>
+            </Popup>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsDropDownOpen" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="ChevronIcon" Storyboard.TargetProperty="(TextBlock.RenderTransform).(RotateTransform.Angle)"
+                                             From="0" To="180" Duration="00:00:00.167" />
+                            <DoubleAnimation Storyboard.TargetName="DropDownBorder" Storyboard.TargetProperty="(Border.RenderTransform).(TranslateTransform.Y)"
+                                             From="-90" To="0" Duration="00:00:00.167">
+                                <DoubleAnimation.EasingFunction>
+                                    <CircleEase EasingMode="EaseOut" />
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="ChevronIcon" Storyboard.TargetProperty="(TextBlock.RenderTransform).(RotateTransform.Angle)"
+                                             From="180" To="0" Duration="00:00:00.167" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="HasItems" Value="False">
+                <Setter TargetName="DropDownBorder" Property="MinHeight" Value="32" />
+            </Trigger>
+            <Trigger SourceName="PART_Popup" Property="Popup.AllowsTransparency" Value="False">
+                <Setter TargetName="DropDownBorder" Property="CornerRadius" Value="0" />
+            </Trigger>
+            <Trigger Property="IsGrouping" Value="True">
+                <Setter Property="ScrollViewer.CanContentScroll" Value="False" />
+            </Trigger>
+            <!-- PointerOver（悬停） -->
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ContentBorder" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter TargetName="ContentBorder" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+            </Trigger>
+            <!-- Focused（聚焦：输入框获得焦点，高亮箭头） -->
+            <Trigger Property="IsFocused" Value="True">
+                <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Trigger>
+            <!-- TextBoxOverlayPointerOver（悬停箭头区） -->
+            <Trigger SourceName="ToggleButton" Property="IsMouseOver" Value="True">
+                <Setter TargetName="DropDownOverlay" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+            </Trigger>
+            <!-- TextBoxOverlayPressed（按下箭头区） -->
+            <Trigger SourceName="ToggleButton" Property="IsPressed" Value="True">
+                <Setter TargetName="DropDownOverlay" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+            </Trigger>
+            <!-- Disabled（禁用） -->
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="ContentBorder" Property="Background" Value="{DynamicResource ControlFillColorDisabledBrush}" />
+                <Setter TargetName="ContentBorder" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                <Setter TargetName="PART_EditableTextBox" Property="TextElement.Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- ── ComboBox（隐式，覆盖 Fluent 默认；IsEditable 自动切换模板） ──── -->
+    <Style TargetType="ComboBox">
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
+        <Setter Property="ContextMenu" Value="{DynamicResource DefaultControlContextMenu}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="{DynamicResource ControlStrokeThickness}" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="False" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.IsDeferredScrollingEnabled" Value="False" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="MinHeight" Value="{DynamicResource TextControlThemeMinHeight}" />
+        <Setter Property="MinWidth" Value="{DynamicResource TextControlThemeMinWidth}" />
+        <Setter Property="Padding" Value="12,5,0,7" />
+        <Setter Property="Border.CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
+        <Setter Property="Popup.PopupAnimation" Value="None" />
+        <Setter Property="Popup.Placement" Value="Bottom" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Template" Value="{StaticResource DefaultComboBoxTemplate}" />
+        <Style.Triggers>
+            <Trigger Property="IsEditable" Value="True">
+                <Setter Property="Template" Value="{StaticResource EditableComboBoxTemplate}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

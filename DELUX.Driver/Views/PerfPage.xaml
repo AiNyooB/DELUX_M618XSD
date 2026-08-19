@@ -3,8 +3,10 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       Title="性能设置">
 
-    <ScrollViewer Padding="24">
-        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+    <Grid>
+        <Border Style="{DynamicResource CardStyle}">
+            <ScrollViewer Padding="24">
+                <StackPanel MaxWidth="760" HorizontalAlignment="Left">
             <TextBlock Text="性能设置" Style="{DynamicResource PageTitleTextStyle}" />
             <TextBlock Text="调整回报率与去抖，让点击更跟手、更稳。"
                        Style="{DynamicResource PageSubtitleTextStyle}"
@@ -18,6 +20,8 @@
                                Style="{DynamicResource CardDescriptionTextStyle}" />
                 </StackPanel>
             </Border>
-        </StackPanel>
-    </ScrollViewer>
+            </StackPanel>
+        </ScrollViewer>
+        </Border>
+    </Grid>
 </Page>

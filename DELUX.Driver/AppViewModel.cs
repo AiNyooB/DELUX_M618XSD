@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -39,7 +40,24 @@ public class AppViewModel : ObservableObject, IDisposable
         SwitchLevelCmd = new RelayCommand(p => SwitchLevel(System.Convert.ToInt32(p)), _ => IsConnected && !IsBusy);
         SelectButtonCmd = new RelayCommand(p => SelectButton(System.Convert.ToInt32(p)));
         SetFuncCmd = new RelayCommand(p => SetButtonFunction(System.Convert.ToByte(p)));
-        SetMacroCmd = new RelayCommand(p => SelectedMacroId = System.Convert.ToInt32(p));
+        HoverButtonCmd = new RelayCommand(p => SetButtonHover(System.Convert.ToInt32(p), true));
+        UnhoverButtonCmd = new RelayCommand(p => SetButtonHover(System.Convert.ToInt32(p), false));
+        SetMacroCmd = new RelayCommand(p => SelectMacroBinding(System.Convert.ToInt32(p)));
+        NewMacroCmd = new RelayCommand(_ => NewMacro());
+        SelectMacroCmd = new RelayCommand(p => SelectMacro(System.Convert.ToInt32(p)));
+        CopyMacroCmd = new RelayCommand(_ => DuplicateMacro());
+        DeleteMacroCmd = new RelayCommand(p => DeleteMacro(p is int id ? id : 0));
+        SaveMacroCmd = new RelayCommand(_ => SaveMacro());
+        CloseMacroCmd = new RelayCommand(_ => CloseMacro());
+        ImportMacroCmd = new RelayCommand(_ => ImportMacro());
+        ExportMacroCmd = new RelayCommand(_ => ExportMacro());
+        RecordToggleCmd = new RelayCommand(_ => ToggleRecord());
+        InsertKeyCmd = new RelayCommand(_ => InsertKey());
+        ClearActionsCmd = new RelayCommand(_ => ClearActions());
+        // 左键改键风险确认（仅左键点击标签即弹，未选功能前先提示；见 SelectButton / ConfirmLeftBtnChange）。
+        LeftBtnConfirmOkCmd = new RelayCommand(_ => ConfirmLeftBtnChange());
+        LeftBtnConfirmCancelCmd = new RelayCommand(_ => CancelLeftBtnChange());
+        _recorder.KeyEvent += OnKeyEvent;
         InitDpi();
         InitButtons();
         InitMacros();
@@ -214,6 +232,7 @@ public class AppViewModel : ObservableObject, IDisposable
         {
             _isDark = dark;
             App.ApplyTheme(dark);
+            RefreshDpiStageBrushes();           // 指示灯色取自主题字典，需随之刷新
             OnPropertyChanged(nameof(IsDark)); // 触发 MainWindow 更新 DWM 材质明暗
         }
         SaveTheme();
@@ -300,9 +319,10 @@ public class AppViewModel : ObservableObject, IDisposable
         public int Index { get; init; }
         public string Label => $"档位 {Index}";
 
-        /// <summary>档位指示灯色（模拟硬件 LED，固定不随主题）：红/绿/蓝/紫/黄 = DPI 1..5，
-        /// 与鼠标 DPI 键灯色一一对应（M618XSD驱动功能Wiki.md 3.2 节）。</summary>
-        public Brush IndicatorBrush { get; init; } = Brushes.Gray;
+        /// <summary>档位指示灯色（模拟硬件 LED）：红/绿/蓝/紫/黄 = DPI 1..5，
+        /// 与鼠标 DPI 键灯色一一对应（M618XSD驱动功能Wiki.md 3.2 节）；
+        /// 颜色定义在浅/深主题字典，主题切换时由 RefreshDpiStageBrushes 刷新（需可写）。</summary>
+        public Brush IndicatorBrush { get; set; } = Brushes.Gray;
 
         private string _value = "800";
         public string Value
@@ -430,16 +450,9 @@ public class AppViewModel : ObservableObject, IDisposable
     private void InitDpi()
     {
         // 官方软件默认 5 档（800/1200/1600/2400/4000），仅前 5 档启用；
-        // 指示灯色序红/绿/蓝/紫/黄 = DPI 1..5（与鼠标 DPI 键灯色一致）。
+        // 指示灯色序红/绿/蓝/紫/黄 = DPI 1..5（与鼠标 DPI 键灯色一致），
+        // 颜色取自主题字典 DpiStageNIndicatorBrush，随浅/深主题切换自动刷新。
         int[] defaults = { 800, 1200, 1600, 2400, 4000 };
-        Color[] colors =
-        {
-            Color.FromRgb(0xE8, 0x11, 0x23), // 红
-            Color.FromRgb(0x1A, 0x9E, 0x3E), // 绿
-            Color.FromRgb(0x00, 0x67, 0xC0), // 蓝
-            Color.FromRgb(0x8A, 0x4B, 0xD8), // 紫
-            Color.FromRgb(0xE0, 0xA0, 0x00), // 黄
-        };
         for (int i = 0; i < defaults.Length; i++)
         {
             var item = new DpiLevelItem
@@ -447,7 +460,7 @@ public class AppViewModel : ObservableObject, IDisposable
                 Index = i + 1,
                 Value = defaults[i].ToString(),
                 Enabled = true,
-                IndicatorBrush = new SolidColorBrush(colors[i]),
+                IndicatorBrush = GetDpiStageBrush(i + 1),
             };
             item.PropertyChanged += OnDpiItemChanged;
             _dpiLevels.Add(item);
@@ -472,6 +485,20 @@ public class AppViewModel : ObservableObject, IDisposable
                 SaveLastLevel(level);
             }
         });
+    }
+
+    /// <summary>从主题字典取第 n 档（1..5）指示灯画刷；缺失时回退灰色，保证主题切换不抛异常。</summary>
+    private static Brush GetDpiStageBrush(int n)
+    {
+        var key = $"DpiStage{n}IndicatorBrush";
+        return Application.Current.TryFindResource(key) is Brush b ? b : Brushes.Gray;
+    }
+
+    /// <summary>主题切换后刷新各档指示灯画刷（颜色定义在浅/深主题字典中，随主题变化）。</summary>
+    private void RefreshDpiStageBrushes()
+    {
+        foreach (var lvl in _dpiLevels)
+            lvl.IndicatorBrush = GetDpiStageBrush(lvl.Index);
     }
 
     /// <summary>任一档数值/启用勾选变化 → 待保存 + 重置防抖计时。</summary>
@@ -506,7 +533,6 @@ public class AppViewModel : ObservableObject, IDisposable
         if (_hid.Wake() && _hid.WriteFeature(Dpi.ToBytes()))
         {
             SaveStatusText = "已保存 ✓";
-            ShowToast("已保存，鼠标 OLED 已切换");
         }
         else
         {
@@ -521,6 +547,7 @@ public class AppViewModel : ObservableObject, IDisposable
     public void SwitchLevel(int level)
     {
         if (level < 1 || level > 5 || !IsConnected) return;
+        if (level == _activeLevel) return; // 已是当前档：不写设备（同类 no-op，见 ApplyEntryChange 守卫）
         if (OfficialDriverRunning)
         {
             ShowToast("检测到官方驱动运行中，已取消切档。请完全退出 Mouse.exe 后重试。");
@@ -659,6 +686,12 @@ public class AppViewModel : ObservableObject, IDisposable
         public double X { get => _x; set => SetProperty(ref _x, value); }
         private double _y;
         public double Y { get => _y; set => SetProperty(ref _y, value); }
+        private bool _isSelected;
+        /// <summary>对应按键标签被选中时联动高亮（图 ↔ 标签 ↔ 面板 三向呼应）。</summary>
+        public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
+        private bool _isHovered;
+        /// <summary>对应按键标签被鼠标悬停时联动高亮（hover 态；选中态 IsSelected 优先级更高，见 ADR buttons-hover-link）。</summary>
+        public bool IsHovered { get => _isHovered; set => SetProperty(ref _isHovered, value); }
         /// <summary>箭头方向对应的线性 Path.Data（14×14 viewBox，无填充）。</summary>
         public string PathData => Kind switch
         {
@@ -687,7 +720,7 @@ public class AppViewModel : ObservableObject, IDisposable
             new(0x0B, "左滚", "鼠标操作"),
             new(0x0C, "右滚", "鼠标操作"),
             new(0x0D, "DPI 循环", "DPI 功能"),
-            new(0x12, "宏", "宏"),
+            new(0x12, "快捷指令", "快捷指令"),
         };
 
         public static string NameOf(byte code)
@@ -704,11 +737,116 @@ public class AppViewModel : ObservableObject, IDisposable
         public bool IsChecked { get => _isChecked; set => SetProperty(ref _isChecked, value); }
     }
 
-    /// <summary>宏列表项（宏 Tab 单选；Phase 5 接入真实宏数据后动态变化，列表为空时宏 Tab 显示空态）。</summary>
+    // ============================ 宏管理（快捷指令页，Phase 5） ============================
+    // 设备宏槽位固定 1..6（0x08 按键映射 entry[2] 与 0x09 宏头 buf[2] 用同一 ID，见 HID协议逆向报告.md 3.6）。
+    // 上位机按「可命名的宏列表」管理，保存时映射到设备槽位；名称↔槽位映射随 macros.json 本地持久化。
+    // 宏动作码仅键盘已验证（鼠标动作码未逆向 → UI 置灰「等待协议补齐」，绝不盲发，AGENTSK 6 节）。
+
+    private const int MaxMacroSlots = 6;
+    /// <summary>单个宏动作步数上限（0x09 数据区 [30..128] 共 49 对，见 Models.cs BuildCommandBuffer）。</summary>
+    private const int MaxMacroActions = 49;
+
+    /// <summary>宏列表项（改键页宏 Tab 与快捷指令页左侧列表共用；Id=设备槽位，0=未分配）。</summary>
     public class MacroItem : ObservableObject
     {
-        public int Id { get; init; }
-        public string Name { get; init; } = "";
+        /// <summary>设备槽位 1..6；0 = 尚未分配（新建宏首次保存时映射空闲槽）。</summary>
+        public int Id { get; set; }
+
+        public MacroConfig Config { get; init; } = new();
+
+        /// <summary>宏名称（编辑即重命名，INPC 驱动列表/编辑器头部同步）。</summary>
+        public string Name
+        {
+            get => Config.Name;
+            set
+            {
+                if (Config.Name == value) return;
+                Config.Name = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsEmpty => Config.Actions.Count == 0;
+        public int StepCount => Config.Actions.Count;
+
+        /// <summary>列表副行摘要：步骤数 + 播放方式。</summary>
+        public string Summary => Config.Actions.Count == 0 ? "无动作" : $"{Config.Actions.Count} 步 · {MethodName(Config.Method)}";
+
+        /// <summary>播放方式中文名（0x00=循环次数 0x01=任意键停止 0x02=按住循环，HID协议逆向报告.md 3.6）。</summary>
+        public static string MethodName(int method) => method switch
+        {
+            0x00 => "循环次数",
+            0x01 => "任意键停止",
+            0x02 => "按住循环",
+            _ => $"未知({method})",
+        };
+
+        /// <summary>是否已被某个按键绑定（VM 注入的检查委托；绑定变化时 NotifyBoundChanged 刷新）。</summary>
+        public Func<bool>? BoundCheck { get; set; }
+        public bool IsBound => BoundCheck?.Invoke() ?? false;
+        public void NotifyBoundChanged() => OnPropertyChanged(nameof(IsBound));
+
+        /// <summary>快捷指令页左侧列表的选中态（正在编辑哪个宏）。</summary>
+        private bool _isSelected;
+        public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
+
+        /// <summary>改键页宏 Tab 的绑定选中态（当前按钮绑定的宏 ID）——与编辑选中态分离，避免两处互斥打架。</summary>
+        private bool _isBindingSelected;
+        public bool IsBindingSelected { get => _isBindingSelected; set => SetProperty(ref _isBindingSelected, value); }
+
+        public void NotifySummaryChanged()
+        {
+            OnPropertyChanged(nameof(IsEmpty));
+            OnPropertyChanged(nameof(StepCount));
+            OnPropertyChanged(nameof(Summary));
+        }
+    }
+
+    /// <summary>宏编辑器动作行（按键 | 按下/释放 | 设备实际延迟ms）。</summary>
+    public class MacroActionItem : ObservableObject
+    {
+        public MacroAction Action { get; init; } = new();
+
+        /// <summary>延迟被修改（VM 订阅此事件以标记「未保存」——延迟框直改共享 Action，绕过了 MarkMacroDirty）。</summary>
+        public event Action? DelayChanged;
+
+        public string KeyName => KeyboardRecorder.KeyNameOf(Action.Code);
+
+        public bool Press
+        {
+            get => Action.Press;
+            set
+            {
+                if (Action.Press == value) return;
+                Action.Press = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PressText));
+            }
+        }
+        public string PressText => Press ? "按下" : "释放";
+
+        /// <summary>设备实际生效延迟（ms）：0=无延迟，否则 10..635 按 5ms 取整
+        /// （编码 byte=round(ms/5) 1..127，与设备解码 max(10, byte×5) 互逆，见 Models.cs）。</summary>
+        public int DelayMs
+        {
+            get => Action.DelayMs;
+            set
+            {
+                int v = NormalizeDelay(value);
+                if (Action.DelayMs == v) return;
+                Action.DelayMs = v;
+                OnPropertyChanged();
+                DelayChanged?.Invoke();
+            }
+        }
+
+        /// <summary>延迟规范化：0 保持 0；否则按 5 取整后 clamp 到 10..635。</summary>
+        public static int NormalizeDelay(int ms)
+        {
+            if (ms <= 0) return 0;
+            int r = (int)(Math.Round(ms / 5.0, MidpointRounding.AwayFromZero) * 5);
+            return Math.Clamp(r, 10, 635);
+        }
 
         private bool _isSelected;
         public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
@@ -736,6 +874,20 @@ public class AppViewModel : ObservableObject, IDisposable
     /// <summary>右侧面板 Tab 索引：0=鼠标操作 1=宏。</summary>
     public int FuncTabIndex => _isMacroSelected ? 1 : 0;
 
+    /// <summary>当前选中按钮生效的「鼠标操作」功能码，供 ListView（SelectedValue）高亮当前项。
+    /// 宏功能在独立 Tab，不计入此值（ListView 仅承载鼠标操作选项）。</summary>
+    public byte? SelectedButtonFuncCode
+    {
+        get
+        {
+            var btn = SelectedButton;
+            if (btn == null) return null;
+            var entry = BtnCfg.Entries[btn.EntryIndex];
+            byte code = entry[0];
+            return code == ButtonConfig.FuncCode.Macro ? (byte?)null : code;
+        }
+    }
+
     private ButtonItem? _selectedButton;
     /// <summary>当前选中的按钮（右侧功能面板数据源）。</summary>
     public ButtonItem? SelectedButton
@@ -749,24 +901,154 @@ public class AppViewModel : ObservableObject, IDisposable
     }
     public bool HasSelection => _selectedButton != null;
 
-    /// <summary>宏列表（当前 1..6 占位；Phase 5 接入真实宏后动态变化）。</summary>
+    /// <summary>宏列表（设备槽位 1..6；新建宏保存时分配空闲槽）。</summary>
     public ObservableCollection<MacroItem> Macros { get; } = new();
+
+    /// <summary>是否还能新建宏（设备最多 6 槽）。</summary>
+    public bool CanAddMacro => Macros.Count < MaxMacroSlots;
+    public bool MacrosFullVisible => Macros.Count >= MaxMacroSlots;
+
+    /// <summary>宏数据本地持久化路径（名称↔槽位映射，跨重启不丢，见 AGENTS.md 宏节）。</summary>
+    private static string MacrosConfigPath()
+        => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DELUX.Driver", "macros.json");
+
+    private class MacroItemDto
+    {
+        public int Id { get; set; }
+        public string? Name { get; set; }
+        public int Method { get; set; }
+        public int LoopCount { get; set; } = 1;
+        public List<MacroActionDto>? Actions { get; set; }
+    }
+    private class MacroActionDto
+    {
+        public int Code { get; set; }
+        public bool Press { get; set; }
+        public int DelayMs { get; set; }
+    }
 
     private void InitMacros()
     {
-        for (int i = 1; i <= 6; i++)
-            Macros.Add(new MacroItem { Id = i, Name = $"宏 {i}" });
+        LoadMacros();
+    }
+
+    /// <summary>启动时从本地加载宏列表（损坏/读失败 → 空列表，走原型空状态「暂无宏配置」）。</summary>
+    private void LoadMacros()
+    {
+        try
+        {
+            var path = MacrosConfigPath();
+            if (!System.IO.File.Exists(path)) return;
+            var arr = System.Text.Json.JsonSerializer.Deserialize<List<MacroItemDto>>(System.IO.File.ReadAllText(path));
+            if (arr == null) return;
+            foreach (var d in arr)
+            {
+                var cfg = new MacroConfig
+                {
+                    Id = d.Id,
+                    Name = d.Name ?? "",
+                    Method = d.Method is >= 0 and <= 2 ? d.Method : 0,
+                    LoopCount = Math.Clamp(d.LoopCount, 1, 255),
+                };
+                if (d.Actions != null)
+                    foreach (var a in d.Actions)
+                        cfg.Actions.Add(new MacroAction { Code = (byte)Math.Clamp(a.Code, 0, 255), Press = a.Press, DelayMs = MacroActionItem.NormalizeDelay(a.DelayMs) });
+                AddMacroItem(cfg, d.Id);
+            }
+        }
+        catch { /* 损坏/读失败 → 空列表 */ }
+        NotifyMacroListChanged();
+    }
+
+    /// <summary>持久化宏列表到本地（名称/播放方式/循环次数/动作全量）。</summary>
+    private void PersistMacros()
+    {
+        try
+        {
+            var path = MacrosConfigPath();
+            var dir = System.IO.Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
+            var dtos = Macros.Select(m => new MacroItemDto
+            {
+                Id = m.Id,
+                Name = m.Name,
+                Method = m.Config.Method,
+                LoopCount = m.Config.LoopCount,
+                Actions = m.Config.Actions.Select(a => new MacroActionDto { Code = a.Code, Press = a.Press, DelayMs = a.DelayMs }).ToList(),
+            }).ToList();
+            System.IO.File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(dtos));
+        }
+        catch { /* 写失败不影响本次使用 */ }
+    }
+
+    /// <summary>加入列表：槽位非法/冲突则自动取空闲槽；返回新建的项。</summary>
+    private MacroItem AddMacroItem(MacroConfig cfg, int slot)
+    {
+        if (slot < 1 || slot > MaxMacroSlots || Macros.Any(m => m.Id == slot))
+            slot = NextFreeSlot();
+        var item = new MacroItem { Id = slot, Config = cfg };
+        item.BoundCheck = () => IsMacroBound(item.Id);
+        if (string.IsNullOrWhiteSpace(item.Name))
+            item.Name = $"MX{NextMacroIndex()}";
+        Macros.Add(item);
+        NotifyMacroListChanged();
+        return item;
+    }
+
+    /// <summary>取第一个空闲槽位（1..6），全满返回 0。</summary>
+    private int NextFreeSlot()
+    {
+        for (int s = 1; s <= MaxMacroSlots; s++)
+            if (!Macros.Any(m => m.Id == s)) return s;
+        return 0;
+    }
+
+    /// <summary>取下一个宏默认名序号：扫描已存宏名中的 "MX{n}"，返回最大 n+1（无则 1）。</summary>
+    private int NextMacroIndex()
+    {
+        int max = 0;
+        foreach (var m in Macros)
+        {
+            var mt = System.Text.RegularExpressions.Regex.Match(m.Name ?? "", @"^MX(\d+)$");
+            if (mt.Success && int.TryParse(mt.Groups[1].Value, out int n))
+                max = Math.Max(max, n);
+        }
+        return max + 1;
+    }
+
+    private void NotifyMacroListChanged()
+    {
+        OnPropertyChanged(nameof(CanAddMacro));
+        OnPropertyChanged(nameof(MacrosFullVisible));
         SyncMacroSelection();
     }
 
-    /// <summary>同步宏列表勾选态（当前选中的宏 ID 勾选）。</summary>
-    private void SyncMacroSelection()
+    /// <summary>宏是否被任一按键绑定（0x08 全表 entry[0]==Macro && entry[2]==id）。</summary>
+    private bool IsMacroBound(int id)
     {
-        foreach (var m in Macros) m.IsSelected = (m.Id == _selectedMacroId);
+        if (id < 1 || id > MaxMacroSlots) return false;
+        return BtnCfg.Entries.Any(e => e[0] == ButtonConfig.FuncCode.Macro && e[2] == id);
     }
 
-    private int _selectedMacroId = 1;
-    /// <summary>宏绑定二级选择：宏 ID（1..6）。</summary>
+    /// <summary>按键绑定变化后刷新各宏的 IsBound 与未绑定警告。</summary>
+    private void NotifyMacroBoundChanged()
+    {
+        foreach (var m in Macros) m.NotifyBoundChanged();
+    }
+
+    /// <summary>同步改键页宏 Tab 的绑定勾选态（当前按钮绑定的宏 ID）。</summary>
+    private void SyncMacroSelection()
+    {
+        foreach (var m in Macros) m.IsBindingSelected = (m.Id == _selectedMacroId);
+    }
+
+    private int _selectedMacroId;
+    /// <summary>宏绑定二级选择：宏 ID（1..6，0=未选）。点击任一宏 ID 即把当前按钮绑定为「宏 + 该 ID」
+    /// （绑定/换 ID 均走 ApplyEntryChange，无变化不触发保存）。此属性只承载「勾选态 + 绑定动作」：
+    /// 选中未绑定宏的按钮或按钮功能改为非宏时必须先清空（见 ClearMacroSelection），否则宏 Tab 会残留
+    /// 上次选中的宏 ID——用户看到「MX1 已被选中」的假象，且再点它因值未变而绑定不生效（点了没反应）。</summary>
     public int SelectedMacroId
     {
         get => _selectedMacroId;
@@ -775,21 +1057,659 @@ public class AppViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedMacroId, value))
             {
                 SyncMacroSelection();
-                // 若当前按钮已绑定宏，切 ID 立即改 entry[2] 并进入待保存
                 var btn = SelectedButton;
-                if (btn != null && BtnCfg.Entries[btn.EntryIndex][0] == ButtonConfig.FuncCode.Macro)
-                    ApplyEntryChange(btn, ButtonConfig.FuncCode.Macro, (byte)value);
+                if (btn != null && ApplyEntryChange(btn, ButtonConfig.FuncCode.Macro, (byte)value))
+                {
+                    BuildFuncOptions(ButtonConfig.FuncCode.Macro); // 刷新右栏 Tab（切到宏 Tab）
+                    NotifyMacroBoundChanged(); // 绑定变化 → 宏页未绑定警告同步
+                }
             }
         }
     }
 
+    /// <summary>宏 Tab 点击宏 ID 的入口：前置校验与 SetButtonFunction 一致（未连接 / 官方驱动运行中给
+    /// Toast），避免「点了没反应」（AGENTS.md §3.3）；校验失败时重推勾选态，纠正 RadioButton 点击后
+    /// 本地残留的勾选（OneWay 绑定不回写源，不重推会停在「已勾选但未绑定」的假象）。</summary>
+    public void SelectMacroBinding(int id)
+    {
+        var btn = SelectedButton;
+        if (btn == null) return;
+        if (!IsConnected) { ReassertMacroChecks(); ShowToast("请先连接鼠标"); return; }
+        if (OfficialDriverRunning)
+        {
+            ReassertMacroChecks();
+            ShowToast("检测到官方驱动运行中，已取消修改。请完全退出 Mouse.exe 后重试。");
+            return;
+        }
+        SelectedMacroId = id;
+    }
+
+    /// <summary>清空宏勾选态（仅改状态，不触发绑定/保存）。选中未绑定宏的按钮、或按钮功能改为非宏时
+    /// 调用，避免宏 Tab 残留上次选中的宏 ID 造成「还没绑定却已勾选」的假象。</summary>
+    private void ClearMacroSelection()
+    {
+        if (_selectedMacroId == 0) return;
+        _selectedMacroId = 0;
+        SyncMacroSelection();
+    }
+
+    /// <summary>强制重推宏 Tab 勾选态：先置反再置回（两次变更通知），让 OneWay 绑定覆盖
+    /// RadioButton 组互斥/用户点击造成的目标侧残留（仅校验失败路径用于状态恢复）。</summary>
+    private void ReassertMacroChecks()
+    {
+        foreach (var m in Macros)
+        {
+            m.IsBindingSelected = !m.IsBindingSelected;
+            m.IsBindingSelected = !m.IsBindingSelected;
+        }
+    }
+
+    /// <summary>新建宏：进入草稿编辑态（未加入列表，保存后才落库显示），避免未保存就污染列表。</summary>
+    public void NewMacro()
+    {
+        if (Macros.Count >= MaxMacroSlots)
+        {
+            ShowToast($"设备最多支持 {MaxMacroSlots} 个快捷指令，请先删除一个");
+            return;
+        }
+        // 草稿：Id=0（未分配槽），不入 Macros 集合；保存时由 SaveMacros 分配槽并落库
+        var draft = new MacroItem { Id = 0, Config = new MacroConfig { Name = $"MX{NextMacroIndex()}", LoopCount = 1 } };
+        draft.BoundCheck = () => IsMacroBound(draft.Id);
+        // 统一走 EditingMacro setter：它会一并通知 EditingMacroName / HasEditingMacro /
+        // EditingMethod / EditingLoopCount / IsLoopCountEnabled 并 RefreshEditingActions，
+        // 确保名称框等编辑器字段立刻拿到草稿值（直接赋值字段会漏通知 EditingMacroName）
+        foreach (var x in Macros) x.IsSelected = false;
+        EditingMacro = draft;
+        IsRecording = false;
+        // 新草稿是干净状态：清掉可能残留的「未保存」标记（否则上次关闭编辑时未清除的
+        // 残留标记会让未做任何修改的新草稿在关闭时误弹二次确认，历史缺陷）
+        SaveStatusText = "";
+        ShowToast("已新建快捷指令，点「开始录制」录制按键吧");
+        // 不在新建时 ScheduleMacroSave —— 草稿未改动不应自动写盘（AGENTS.md 3.1：修改后才自动保存）
+    }
+
+    /// <summary>选中宏进入编辑（停止录制；加载动作序列到编辑器）。</summary>
+    public void SelectMacro(int id)
+    {
+        var m = Macros.FirstOrDefault(x => x.Id == id);
+        if (m == null) return;
+        foreach (var x in Macros) x.IsSelected = (x == m);
+        EditingMacro = m;
+    }
+
+    /// <summary>退出编辑视图、返回列表视图（清空当前编辑宏与动作序列）。
+    /// 同时清掉「未保存」标记：关闭即退出编辑上下文，标记不得残留到下一次新建/编辑
+    /// （否则未做修改的新草稿在关闭时也会误弹二次确认，历史缺陷）。</summary>
+    public void CloseMacro()
+    {
+        EditingMacro = null;
+        EditingActions.Clear();
+        SelectedActionIndex = -1;
+        SaveStatusText = "";
+    }
+
+    /// <summary>复制当前宏（名称 +「副本」，新槽位，进入编辑态）。</summary>
+    public void DuplicateMacro()
+    {
+        var src = EditingMacro;
+        if (src == null) return;
+        if (Macros.Count >= MaxMacroSlots)
+        {
+            ShowToast($"设备最多支持 {MaxMacroSlots} 个快捷指令，请先删除一个");
+            return;
+        }
+        var cfg = new MacroConfig { Name = src.Name + " 副本", Method = src.Config.Method, LoopCount = src.Config.LoopCount };
+        foreach (var a in src.Config.Actions)
+            cfg.Actions.Add(new MacroAction { Code = a.Code, Press = a.Press, DelayMs = a.DelayMs });
+        var item = AddMacroItem(cfg, 0);
+        SelectMacro(item.Id);
+        ScheduleMacroSave();
+        ShowToast("已复制快捷指令");
+    }
+
+    /// <summary>两步确认的武装目标宏 Id；-1 = 未武装。按目标记（武装 A 后再点 B 不会误删 B）。</summary>
+    private int _deleteArmedId = -1;
+    public bool DeleteArmed => _deleteArmedId >= 0;
+    public string MacroDeleteButtonText => DeleteArmed ? "确认删除？" : "删除快捷指令";
+
+    /// <summary>删除宏（两次点击确认；已绑定按键不静默改写，仅提示指向空槽）。
+    /// 不传参时删当前编辑项；hover 删除传 Id。**第一击只武装、不进入编辑态**——
+    /// 否则选中即禁用左栏（HasEditingMacro），第二击点不到按钮，删除死锁。</summary>
+    public void DeleteMacro(int id = 0)
+    {
+        var m = id != 0 ? Macros.FirstOrDefault(x => x.Id == id) : EditingMacro;
+        if (m == null) return;
+        if (_deleteArmedId != m.Id)
+        {
+            _deleteArmedId = m.Id;
+            OnPropertyChanged(nameof(DeleteArmed));
+            ArmResetTimer();
+            ShowToast("再次点击确认删除");
+            return;
+        }
+        _deleteArmedId = -1;
+        OnPropertyChanged(nameof(DeleteArmed));
+        int bound = BtnCfg.Entries.Count(e => e[0] == ButtonConfig.FuncCode.Macro && e[2] == m.Id);
+        string name = m.Name;
+        Macros.Remove(m);
+        if (EditingMacro == m)
+        {
+            EditingMacro = null;
+            EditingActions.Clear();
+        }
+        NotifyMacroListChanged();
+        PersistMacros();
+        SaveStatusText = "";
+        ShowToast(bound > 0
+            ? $"已删除「{name}」，仍有 {bound} 个按键指向它（将无动作，可到改键设置改绑）"
+            : $"已删除「{name}」");
+        if (Macros.Count > 0 && EditingMacro == null) SelectMacro(Macros[0].Id);
+    }
+
+    /// <summary>导出当前宏为 JSON（本软件自用格式）。</summary>
+    public void ExportMacro()
+    {
+        var m = EditingMacro;
+        if (m == null) return;
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "快捷指令文件 (*.json)|*.json",
+            FileName = $"{SanitizeFileName(m.Name)}.json",
+        };
+        if (dlg.ShowDialog() != true) return;
+        var dto = new MacroItemDto
+        {
+            Name = m.Name,
+            Method = m.Config.Method,
+            LoopCount = m.Config.LoopCount,
+            Actions = m.Config.Actions.Select(a => new MacroActionDto { Code = a.Code, Press = a.Press, DelayMs = a.DelayMs }).ToList(),
+        };
+        System.IO.File.WriteAllText(dlg.FileName, System.Text.Json.JsonSerializer.Serialize(dto));
+        ShowToast("已导出快捷指令");
+    }
+
+    /// <summary>导入宏 JSON：结构/范围校验，非法文件拒绝写入并提示（计划文档验收项）。</summary>
+    public void ImportMacro()
+    {
+        if (Macros.Count >= MaxMacroSlots)
+        {
+            ShowToast($"设备最多支持 {MaxMacroSlots} 个快捷指令，请先删除一个");
+            return;
+        }
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "快捷指令文件 (*.json)|*.json" };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            var dto = System.Text.Json.JsonSerializer.Deserialize<MacroItemDto>(System.IO.File.ReadAllText(dlg.FileName));
+            if (dto == null || dto.Actions == null) throw new FormatException();
+            var rawName = string.IsNullOrWhiteSpace(dto.Name) ? "导入的快捷指令" : dto.Name.Trim();
+            if (rawName.Length > 20) rawName = rawName[..20]; // 与编辑器名称框 MaxLength=20 一致
+            var cfg = new MacroConfig
+            {
+                Name = rawName,
+                Method = dto.Method is >= 0 and <= 2 ? dto.Method : 0,
+                LoopCount = Math.Clamp(dto.LoopCount, 1, 255),
+            };
+            foreach (var a in dto.Actions)
+            {
+                if (a.Code is < 0 or > 255 || a.DelayMs < 0 || (a.DelayMs > 0 && (a.DelayMs < 5 || a.DelayMs > 635)))
+                    throw new FormatException();
+                cfg.Actions.Add(new MacroAction { Code = (byte)a.Code, Press = a.Press, DelayMs = MacroActionItem.NormalizeDelay(a.DelayMs) });
+            }
+            // 131B 数据区上限 49 对：超限截断并提示（与录制/插入的封顶一致）
+            bool truncated = cfg.Actions.Count > MaxMacroActions;
+            if (truncated) cfg.Actions = cfg.Actions.Take(MaxMacroActions).ToList();
+            var item = AddMacroItem(cfg, 0);
+            SelectMacro(item.Id);
+            ScheduleMacroSave();
+            ShowToast(truncated ? $"已导入（动作超过 {MaxMacroActions} 步，已保留前 {MaxMacroActions} 步）" : "已导入快捷指令");
+        }
+        catch
+        {
+            ShowToast("文件无法识别，请检查是否本软件导出"); // 非法文件不写入
+        }
+    }
+
+    private static string SanitizeFileName(string s)
+        => string.Concat(s.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+
+    // ---- 编辑器状态 ----
+
+    private MacroItem? _editingMacro;
+    /// <summary>进入编辑态时的配置快照（「丢弃」回滚目标 = 上次保存状态；保存成功后刷新）。</summary>
+    private MacroConfig? _editingSnapshot;
+
+    /// <summary>当前编辑的宏（快捷指令页右侧编辑器数据源）。</summary>
+    public MacroItem? EditingMacro
+    {
+        get => _editingMacro;
+        private set
+        {
+            if (SetProperty(ref _editingMacro, value))
+            {
+                // 进入编辑态时快照当前（已保存）状态——编辑器全程直改共享对象
+                // （Name/Config/动作序列引用），丢弃时必须能回滚到这里（历史缺陷：丢弃不真正回滚）
+                _editingSnapshot = value == null ? null : CloneConfig(value.Config);
+                OnPropertyChanged(nameof(HasEditingMacro));
+                OnPropertyChanged(nameof(EditingMacroName));
+                OnPropertyChanged(nameof(EditingMethod));
+                OnPropertyChanged(nameof(EditingLoopCount));
+                OnPropertyChanged(nameof(IsLoopCountEnabled));
+                RefreshEditingActions();
+            }
+        }
+    }
+    public bool HasEditingMacro => _editingMacro != null;
+
+    /// <summary>编辑器动作行集合（保存/持久化前由 MarkMacroDirty 写回 Config）。</summary>
+    public ObservableCollection<MacroActionItem> EditingActions { get; } = new();
+
+    /// <summary>宏名称编辑框（输入即重命名 + 待保存）。</summary>
+    public string EditingMacroName
+    {
+        get => _editingMacro?.Name ?? "";
+        set
+        {
+            if (_editingMacro == null || _editingMacro.Name == value) return;
+            _editingMacro.Name = value;
+            OnPropertyChanged();
+            MarkMacroDirty();
+        }
+    }
+
+    /// <summary>播放方式（0x00=循环次数 0x01=任意键停止 0x02=按住循环）。</summary>
+    public int EditingMethod
+    {
+        get => _editingMacro?.Config.Method ?? 0;
+        set
+        {
+            if (_editingMacro == null || _editingMacro.Config.Method == value) return;
+            _editingMacro.Config.Method = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsLoopCountEnabled));
+            _editingMacro.NotifySummaryChanged();
+            MarkMacroDirty();
+        }
+    }
+
+    /// <summary>循环次数（仅「循环次数」方式生效，1..255）。</summary>
+    public int EditingLoopCount
+    {
+        get => _editingMacro?.Config.LoopCount ?? 1;
+        set
+        {
+            if (_editingMacro == null) return;
+            int v = Math.Clamp(value, 1, 255);
+            if (_editingMacro.Config.LoopCount == v) return;
+            _editingMacro.Config.LoopCount = v;
+            OnPropertyChanged();
+            MarkMacroDirty();
+        }
+    }
+
+    public bool IsLoopCountEnabled => _editingMacro != null && _editingMacro.Config.Method == 0x00;
+
+    /// <summary>把编辑器行写回宏配置并启动防抖保存（动作/延迟/方法/次数任一变更都走这里）。</summary>
+    private void MarkMacroDirty()
+    {
+        if (_editingMacro == null) return;
+        _editingMacro.Config.Actions = EditingActions.Select(a => a.Action).ToList();
+        _editingMacro.NotifySummaryChanged();
+        ScheduleMacroSave();
+    }
+
+    private void RefreshEditingActions()
+    {
+        EditingActions.Clear();
+        if (_editingMacro != null)
+            foreach (var a in _editingMacro.Config.Actions)
+            {
+                var item = new MacroActionItem { Action = a };
+                // 延迟框直改共享 Action 对象（见 MacroActionItem.DelayMs），必须经事件标记「未保存」
+                item.DelayChanged += () => MarkMacroDirty();
+                EditingActions.Add(item);
+            }
+        SelectedActionIndex = -1;
+    }
+
+    // ---- 动作序列编辑 ----
+
+    private int _selectedActionIndex = -1;
+    public int SelectedActionIndex
+    {
+        get => _selectedActionIndex;
+        set
+        {
+            if (SetProperty(ref _selectedActionIndex, value))
+            {
+                for (int i = 0; i < EditingActions.Count; i++) EditingActions[i].IsSelected = (i == value);
+                OnPropertyChanged(nameof(HasSelectedAction));
+            }
+        }
+    }
+    public bool HasSelectedAction => _selectedActionIndex >= 0 && _selectedActionIndex < EditingActions.Count;
+
+    public void SelectAction(int index) => SelectedActionIndex = index;
+
+    /// <summary>步数上限提示（仅一次，避免录制中重复弹）。低于上限时自动复位。</summary>
+    private void NotifyMacroCap()
+    {
+        if (EditingActions.Count >= MaxMacroActions)
+        {
+            if (!_macroCapToastShown)
+            {
+                _macroCapToastShown = true;
+                ShowToast($"快捷指令最多支持 {MaxMacroActions} 步动作");
+            }
+        }
+        else
+        {
+            _macroCapToastShown = false;
+        }
+    }
+
+    private bool _macroCapToastShown;
+
+    private void AddAction(MacroAction action)
+    {
+        if (_editingMacro == null) return;
+        // 按下动作受 49 步上限约束；「抬起」始终允许追加（防停止录制时补录的抬起被挡，导致修饰键卡死）
+        if (action.Press && EditingActions.Count >= MaxMacroActions)
+        {
+            NotifyMacroCap();
+            return;
+        }
+        EditingActions.Add(new MacroActionItem { Action = action });
+        SelectedActionIndex = EditingActions.Count - 1;
+        MarkMacroDirty();
+    }
+
+    /// <summary>切换选中行「按下/释放」。</summary>
+    public void TogglePress(int index)
+    {
+        if (index < 0 || index >= EditingActions.Count) return;
+        EditingActions[index].Press = !EditingActions[index].Press;
+        MarkMacroDirty();
+    }
+
+    /// <summary>拖拽重排：把 from 位置动作移到 to 位置（to 为目标插入下标，已做边界归一化）。</summary>
+    public void MoveAction(int from, int to)
+    {
+        if (from < 0 || from >= EditingActions.Count) return;
+        to = Math.Max(0, Math.Min(to, EditingActions.Count - 1));
+        if (to == from) return;
+        EditingActions.Move(from, to);
+        SelectedActionIndex = to;
+        MarkMacroDirty();
+    }
+
+    public void DeleteAction(int index)
+    {
+        if (index < 0 || index >= EditingActions.Count) return;
+        EditingActions.RemoveAt(index);
+        SelectedActionIndex = -1;
+        MarkMacroDirty();
+    }
+
+    private bool _clearArmed;
+    public bool ClearArmed { get => _clearArmed; set { if (SetProperty(ref _clearArmed, value)) OnPropertyChanged(nameof(ClearButtonText)); } }
+    public string ClearButtonText => ClearArmed ? "确认清空？" : "重置";
+
+    /// <summary>清空动作序列（两次点击确认，防误清）。</summary>
+    public void ClearActions()
+    {
+        if (EditingActions.Count == 0) return;
+        if (!ClearArmed)
+        {
+            ClearArmed = true;
+            ArmResetTimer();
+            ShowToast("再次点击确认清空动作序列");
+            return;
+        }
+        ClearArmed = false;
+        EditingActions.Clear();
+        SelectedActionIndex = -1;
+        MarkMacroDirty();
+        ShowToast("已清空动作序列");
+    }
+
+    private DispatcherTimer? _armResetTimer;
+    /// <summary>两步确认的自动解除（2.5s 未点第二次 → 回到未武装态；一次性，触发后自停）。</summary>
+    private void ArmResetTimer()
+    {
+        _armResetTimer?.Stop();
+        _armResetTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+        _armResetTimer.Tick += (_, _) =>
+        {
+            _armResetTimer?.Stop(); // 一次性解除，避免每 2.5s 空转
+            _deleteArmedId = -1;
+            OnPropertyChanged(nameof(DeleteArmed));
+            ClearArmed = false;
+        };
+        _armResetTimer.Start();
+    }
+
+    // ---- 实时录制（低级键盘钩子，仅录制期间安装；鼠标动作码未逆向 → 不提供录制鼠标，见 AGENTSK 6 节） ----
+
+    private readonly KeyboardRecorder _recorder = new();
+    private DateTime _lastKeyTime;
+    /// <summary>录制期间按下的键（未抬起）；停止录制时补录为「抬起」，防播放时修饰键/按键卡死。</summary>
+    private readonly HashSet<byte> _recordingDownKeys = new();
+
+    private bool _isRecording;
+    public bool IsRecording { get => _isRecording; set { if (SetProperty(ref _isRecording, value)) OnPropertyChanged(nameof(RecordButtonText)); } }
+    public string RecordButtonText => IsRecording ? "停止录制" : "开始录制";
+
+    private bool _capturingKey;
+    public bool IsCapturingKey { get => _capturingKey; set { if (SetProperty(ref _capturingKey, value)) OnPropertyChanged(nameof(InsertKeyButtonText)); } }
+    public string InsertKeyButtonText => IsCapturingKey ? "请按下要插入的键…（Esc 取消）" : "插入按键";
+
+    /// <summary>录制开关（录制中再次点击 = 停止）。</summary>
+    public void ToggleRecord()
+    {
+        if (IsRecording) { StopRecord(); return; }
+        StartRecord();
+    }
+
+    private void StartRecord()
+    {
+        if (_editingMacro == null) return;
+        // 录制是纯本地键盘捕获，不依赖设备连接（宏保存亦不写设备）
+        if (OfficialDriverRunning) { ShowToast("检测到官方驱动运行中。请完全退出 Mouse.exe 后重试。"); return; }
+        IsCapturingKey = false; // 取消残留的「插入按键」捕获态
+        _lastKeyTime = default;
+        _recordingDownKeys.Clear();
+        _recorder.Install();
+        IsRecording = true;
+        ShowToast("录制中…");
+    }
+
+    private void StopRecord()
+    {
+        _recorder.Uninstall();
+        IsRecording = false;
+        // 补录仍按住的键为「抬起」：停止瞬间的物理抬起已收不到（钩子已卸载），否则宏播放时按键卡死
+        foreach (var code in _recordingDownKeys)
+            AddAction(new MacroAction { Code = code, Press = false });
+        _recordingDownKeys.Clear();
+        if (_editingMacro != null) MarkMacroDirty();
+    }
+
+    /// <summary>插入按键：进入「请按键…」捕获态，下一个按键（不含 Esc）插入为「按下」动作。</summary>
+    public void InsertKey()
+    {
+        if (_editingMacro == null) return;
+        if (IsRecording)
+        {
+            ShowToast("录制中无法插入按键，请先停止录制");
+            return;
+        }
+        IsCapturingKey = true;
+        _recorder.Install();
+    }
+
+    /// <summary>离开快捷指令页时兜底卸载钩子（防导航后常驻）。</summary>
+    public void CancelCapture()
+    {
+        _recorder.Uninstall();
+        IsRecording = false;
+        IsCapturingKey = false;
+        _recordingDownKeys.Clear();
+    }
+
+    private void OnKeyEvent(byte hid, bool down)
+    {
+        // 仅「插入按键」捕获态下 Esc（HID 41）表示取消；录制态不再用 Esc 结束，Esc 作为普通按键入列
+        if (hid == 41 && IsCapturingKey)
+        {
+            IsCapturingKey = false;
+            _recorder.Uninstall();
+            return;
+        }
+        if (IsCapturingKey && down)
+        {
+            IsCapturingKey = false;
+            _recorder.Uninstall();
+            AddAction(new MacroAction { Code = hid, Press = true });
+            return;
+        }
+        if (!IsRecording) return;
+        // 录制：按下/抬起都入列；相邻事件间隔 → 前一个动作的延迟（设备实际，10..635ms 按 5 取整）
+        // 达步数上限后，下一个「按下」自动停止录制（防无限追加）；抬起仍正常入列
+        if (down && EditingActions.Count >= MaxMacroActions)
+        {
+            StopRecord();
+            NotifyMacroCap();
+            return;
+        }
+        if (down) _recordingDownKeys.Add(hid);
+        else _recordingDownKeys.Remove(hid);
+        var now = DateTime.Now;
+        int delay = _lastKeyTime == default
+            ? 0
+            : MacroActionItem.NormalizeDelay((int)(now - _lastKeyTime).TotalMilliseconds);
+        AddAction(new MacroAction { Code = hid, Press = down, DelayMs = delay });
+        _lastKeyTime = now;
+    }
+
+    // ---- 宏保存：仅本地持久化，不写设备 ----
+    // 官方驱动同样不支持独立宏写入（无 0x09 直写入口）；宏经「改键设置」把按键绑定为宏
+    // （0x08 entry[0]=0x12、entry[2]=槽位）后由设备按绑定关系生效。故宏页绝不 WriteFeature
+    // 写设备、也不要求连接设备；「保存」= 落本地 macros.json + 分配槽位。
+
+    private void ScheduleMacroSave()
+    {
+        // 标记「未保存」：由用户点「保存」按钮落本地；关闭编辑器时据此二次确认（防丢输入）。
+        if (_editingMacro == null) return;
+        SaveStatusText = "未保存";
+    }
+
+    /// <summary>手动保存入口（「保存」按钮调用）：仅本地持久化宏数据（不写设备）。
+    /// 宏生效依赖改键页将按键绑定为宏（0x08 引用槽位），本方法不触碰设备。</summary>
+    public void SaveMacro() => SaveMacros();
+
+    /// <summary>深拷贝宏配置（快照/回滚用：动作对象全部分离，后续编辑不污染快照）。</summary>
+    private static MacroConfig CloneConfig(MacroConfig src) => new()
+    {
+        Id = src.Id,
+        Name = src.Name,
+        Method = src.Method,
+        LoopCount = src.LoopCount,
+        Actions = src.Actions.Select(a => new MacroAction { Code = a.Code, Press = a.Press, DelayMs = a.DelayMs }).ToList(),
+    };
+
+    /// <summary>丢弃未保存修改：把正在编辑的宏回滚到上次保存的状态（进入编辑时的快照，保存后为最近一次保存）。
+    /// 已保存宏：改名/播放方式/循环次数/动作序列（含延迟）全部回滚；新建草稿：直接随关闭丢弃（不落列表）。
+    /// 由关闭编辑器选「丢弃」或切页确认选「丢弃」调用。</summary>
+    public void DiscardMacro()
+    {
+        if (_editingMacro == null || _editingSnapshot == null) return;
+        var m = _editingMacro;
+        m.Name = _editingSnapshot.Name; // 写回 Config.Name 并通知列表刷新
+        m.Config.Method = _editingSnapshot.Method;
+        m.Config.LoopCount = _editingSnapshot.LoopCount;
+        m.Config.Actions = _editingSnapshot.Actions
+            .Select(a => new MacroAction { Code = a.Code, Press = a.Press, DelayMs = a.DelayMs }).ToList();
+        m.NotifySummaryChanged();
+        ShowToast("已丢弃未保存的修改");
+    }
+
+    /// <summary>本地持久化：本地数据库保存宏内容（动作/延迟/循环），分配槽号。不写设备。</summary>
+    private void SaveMacros()
+    {
+        var m = _editingMacro;
+        if (m == null) return;
+
+        m.Config.Actions = EditingActions.Select(a => a.Action).ToList();
+
+        // 草稿（新建未保存）首次保存：分配空闲槽（设备上限 6）并纳入列表集合，列表才显示
+        if (!Macros.Any(x => x == m))
+        {
+            if (m.Id == 0) m.Id = NextFreeSlot();
+            if (m.Id == 0)
+            {
+                SaveStatusText = "保存失败";
+                ShowToast("设备最多支持 6 个快捷指令，请先删除一个");
+                return;
+            }
+            m.Config.Id = m.Id;
+            m.BoundCheck = () => IsMacroBound(m.Id);
+            Macros.Add(m);
+            NotifyMacroListChanged();
+        }
+
+        PersistMacros();
+        SaveStatusText = "";   // 清空未保存标记（反馈用 Toast，不常驻"正在保存"）
+        _editingSnapshot = CloneConfig(m.Config); // 保存成功 → 丢弃回滚目标刷新为本次保存的状态
+        ShowToast("已保存到本机，在「按键设置」绑定到按键后即可生效");
+    }
+
     /// <summary>设置宏命令（参数 = 宏 ID）。</summary>
     public RelayCommand SetMacroCmd { get; }
+    public RelayCommand NewMacroCmd { get; }
+    public RelayCommand SelectMacroCmd { get; }
+    public RelayCommand CopyMacroCmd { get; }
+    public RelayCommand DeleteMacroCmd { get; }
+    public RelayCommand SaveMacroCmd { get; }
+    /// <summary>退出宏编辑视图（返回列表视图）。</summary>
+    public RelayCommand CloseMacroCmd { get; }
+    public RelayCommand ImportMacroCmd { get; }
+    public RelayCommand ExportMacroCmd { get; }
+    public RelayCommand RecordToggleCmd { get; }
+    public RelayCommand InsertKeyCmd { get; }
+    public RelayCommand ClearActionsCmd { get; }
 
     /// <summary>选中按钮命令（参数 = 按钮 Index）。</summary>
     public RelayCommand SelectButtonCmd { get; }
     /// <summary>设置选中按钮功能命令（参数 = 功能码）。</summary>
     public RelayCommand SetFuncCmd { get; }
+    /// <summary>鼠标进入按键标签时联动对应图标高亮（参数 = 按钮 Index）。</summary>
+    public RelayCommand HoverButtonCmd { get; }
+    /// <summary>鼠标离开按键标签时取消对应图标高亮（参数 = 按钮 Index）。</summary>
+    public RelayCommand UnhoverButtonCmd { get; }
+
+    // ============ 左键改键风险确认（独立模态窗口，覆盖含标题栏的整个主窗口） ============
+    // 仅左键（EntryIndex==0）点击标签即弹，未选功能前先提示（见 SelectButton / ConfirmLeftBtnChange）；
+    // 弹窗显示/关闭由 MainWindow.UpdateLeftBtnConfirm 监听本属性驱动。
+    private bool _leftBtnConfirmVisible;
+    /// <summary>左键风险确认弹窗是否可见（独立模态窗口，MainWindow 监听本属性开合）。</summary>
+    public bool LeftBtnConfirmVisible
+    {
+        get => _leftBtnConfirmVisible;
+        set => SetProperty(ref _leftBtnConfirmVisible, value);
+    }
+    private string _leftBtnConfirmText = "";
+    /// <summary>左键确认弹窗正文（仅风险说明；动作名由弹窗标题「修改左键」承载）。必须走 SetProperty：
+    /// 绑定收不到变更通知时赋值后界面永不更新（历史事故：文案不显示）。</summary>
+    public string LeftBtnConfirmText
+    {
+        get => _leftBtnConfirmText;
+        private set => SetProperty(ref _leftBtnConfirmText, value);
+    }
+    /// <summary>「我知道了」→ 真正执行改键；「取消」→ 丢弃。</summary>
+    public RelayCommand LeftBtnConfirmOkCmd { get; }
+    /// <summary>「取消」→ 放弃本次改动。</summary>
+    public RelayCommand LeftBtnConfirmCancelCmd { get; }
 
     private System.Threading.Timer? _buttonSaveDebounce;
 
@@ -802,17 +1722,17 @@ public class AppViewModel : ObservableObject, IDisposable
         // TagX/TagY 为标签在 660×660 鼠标图上的估算位置（侧视图：顶部=左右键/滚轮/DPI，侧边=前进后退/拇指滚轮）。
         var map = new (string Name, int Entry, bool Primary, string IconKey, double TagX, double TagY)[]
         {
-            // 300×506 系初值（旧 660 系换算 + 按新图轮廓估；拖动标签可实时定位，最终以 button-tags.json 为准）
-            ("左键",   0, true,  "左键", 50,  40),
-            ("右键",   1, true,  "右键", 140, 40),
-            ("滚轮",   4, true,  "中键", 90,  100),   // 中键点击（顶部中部）
-            ("上滚",   16, false,"上滚", 90,  60),
-            ("下滚",   17, false,"下滚", 90, 140),
-            ("DPI 键", 5, false, "DPI", 140, 100),
-            ("前进",   2, false, "前进", 60, 180),
-            ("后退",   3, false, "后退",210,180),
-            ("左滚",   14,false, "左滚", 60, 260),
-            ("右滚",   15,false, "右滚",210,260),
+            // 标签坐标已实机拖动精调定稿（300×506 系，Coord 见 IconMarkers 已校准物理中心）。
+            ("左键",   0, true,  "左键", 127.02, 145.99),
+            ("右键",   1, true,  "右键", 188.05, 166.48),
+            ("中键",   4, true,  "中键", 197.23, 71.17),   // 中键点击 + 上下滚（顶部中部）
+            ("上滚",   16, false,"上滚", 246.16, 38.10),
+            ("下滚",   17, false,"下滚", 248.28, 111.03),
+            ("DPI 键", 5, false, "DPI", 50.97, 183.38),
+            ("前进",   2, false, "前进", -36.10, 105.10),
+            ("后退",   3, false, "后退", -50.03, 162.33),
+            ("左滚",   14,false, "左滚", -55.88, 247.28),
+            ("右滚",   15,false, "右滚", 0.84, 247.99),
         };
         for (int i = 0; i < map.Length; i++)
         {
@@ -831,8 +1751,8 @@ public class AppViewModel : ObservableObject, IDisposable
         }
         _buttonSaveDebounce = new System.Threading.Timer(_ => Application.Current.Dispatcher.BeginInvoke(SaveButtons),
             null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
-        // 拖动定位期间：若有调试坐标文件则覆盖默认坐标（重启不丢已拖好的位置）
-        LoadTagPositions();
+        // 标签坐标已写死至下方 map 默认值（实机精调定稿），调试拖动/读文件逻辑保留但不启用。
+        // LoadTagPositions();
     }
 
     /// <summary>标签坐标调试文件路径（临时：拖动标签定位按键后写此文件，确认后写死默认值并移除）。</summary>
@@ -912,16 +1832,73 @@ public class AppViewModel : ObservableObject, IDisposable
         if (SelectedButton != null && SelectedButton.Index == index)
         {
             for (int i = 0; i < Buttons.Count; i++) Buttons[i].IsSelected = false;
+            foreach (var m in IconMarkers) m.IsSelected = false;
             SelectedButton = null;
             return;
         }
+        // 仅左键（index==0）：点标签先弹风险确认（独立模态窗口），**确认前不建立选中态、不展开右栏**；
+        // 点「我知道了」才 SelectButtonCore(0)，点「取消」放弃（见 ConfirmLeftBtnChange / CancelLeftBtnChange）。
+        if (index == 0)
+        {
+            LeftBtnConfirmText = LeftBtnConfirmBody;
+            LeftBtnConfirmVisible = true;
+            return;
+        }
+        SelectButtonCore(index);
+    }
+
+    /// <summary>建立按钮选中态并展开右侧分配功能面板（普通键点击即调；左键在确认弹窗点「我知道了」后调用）。</summary>
+    private void SelectButtonCore(int index)
+    {
         for (int i = 0; i < Buttons.Count; i++) Buttons[i].IsSelected = (i == index);
         SelectedButton = Buttons[index];
+        // 联动高亮：仅选中按钮对应的位置图标点亮
+        var selKey = Buttons[index].IconKey;
+        foreach (var m in IconMarkers) m.IsSelected = (m.IconKey == selKey);
         BuildFuncOptions(BtnCfg.Entries[Buttons[index].EntryIndex][0]);
         // 若该按钮已绑定宏，宏列表勾选同步到该按钮的宏 ID（否则保持上次选择）
         var entry = BtnCfg.Entries[Buttons[index].EntryIndex];
         if (entry[0] == ButtonConfig.FuncCode.Macro && entry[2] >= 1 && entry[2] <= 6)
             SelectedMacroId = entry[2];
+        else
+            ClearMacroSelection(); // 未绑定宏的按钮：清空勾选，宏 Tab 不做任何预选（用户反馈的 MX1 假选中）
+    }
+
+    /// <summary>左键确认弹窗「取消」→ 放弃本次切换，回到**无选中态**（分配功能面板关闭）。
+    /// 点击左键标签 = 尝试切换到左键（确认前不建立选中态，见 SelectButton）；取消即放弃，
+    /// 原选中态一并清除——用户规格：改右键时点左键→取消，面板应关闭（初版仅在左键已选中时
+    /// 才清除，改右键场景会残留右键选中态）。</summary>
+    private void CancelLeftBtnChange()
+    {
+        LeftBtnConfirmVisible = false;
+        for (int i = 0; i < Buttons.Count; i++) Buttons[i].IsSelected = false;
+        foreach (var m in IconMarkers) m.IsSelected = false;
+        SelectedButton = null;
+        // 点击左键标签时 RadioButton 组互斥/用户点击在目标侧残留的勾选态（OneWay 不回写源），
+        // 强制重推覆盖为「全未选中」，与 VM 一致。
+        ReassertTagChecks();
+    }
+
+    /// <summary>强制重推各标签勾选态：先置反再置回（两次变更通知），让 OneWay 绑定覆盖
+    /// RadioButton 组互斥/用户点击造成的目标侧残留（仅取消路径用于状态恢复）。</summary>
+    private void ReassertTagChecks()
+    {
+        for (int i = 0; i < Buttons.Count; i++)
+        {
+            Buttons[i].IsSelected = !Buttons[i].IsSelected;
+            Buttons[i].IsSelected = !Buttons[i].IsSelected;
+        }
+    }
+
+    // ============ 按键标签 hover → 图标联动高亮 ============
+    // 关联键：ButtonItem.IconKey ↔ IconMarker.IconKey（见 ADR buttons-hover-link）。
+    // 选中态 IsSelected 优先级高于 hover 态 IsHovered：选中后即使移开鼠标仍保持高亮。
+    private void SetButtonHover(int buttonIndex, bool hovered)
+    {
+        var btn = Buttons.FirstOrDefault(b => b.Index == buttonIndex);
+        if (btn == null) return;
+        foreach (var m in IconMarkers)
+            m.IsHovered = hovered && m.IconKey == btn.IconKey;
     }
 
     /// <summary>重建右侧功能面板（「鼠标操作」Tab 选项 + 宏 Tab 选中态）。</summary>
@@ -934,10 +1911,12 @@ public class AppViewModel : ObservableObject, IDisposable
             FuncOptions.Add(new FuncOption { Code = f.Code, Name = f.Name, IsChecked = f.Code == currentCode });
         }
         IsMacroSelected = currentCode == ButtonConfig.FuncCode.Macro;
+        // 列表重建后通知 ListView 的 SelectedValue 重新匹配当前高亮项
+        OnPropertyChanged(nameof(SelectedButtonFuncCode));
     }
 
     /// <summary>设置选中按钮的功能（克隆全表 → 改目标 entry → 防抖整表写）。
-    /// 关键键（左/右/中）改为非自身功能时弹风险确认（原型 §2.4）。</summary>
+    /// 左键风险确认已前移到点击标签时（见 SelectButton），此处直接改键、不再弹窗。</summary>
     public void SetButtonFunction(byte code)
     {
         var btn = SelectedButton;
@@ -949,35 +1928,36 @@ public class AppViewModel : ObservableObject, IDisposable
             return;
         }
         byte param = code == ButtonConfig.FuncCode.Macro ? (byte)_selectedMacroId : (byte)0;
-        // 关键键改掉自身功能（如左键不再当左键）→ 风险确认，避免用户点掉后没法点回来。
-        if (btn.IsPrimary && code != BtnCfg.Entries[btn.EntryIndex][0]
-            && code != DefaultFuncFor(btn.EntryIndex))
+        if (ApplyEntryChange(btn, code, param))
         {
-            var r = System.Windows.MessageBox.Show(
-                $"将把「{btn.Name}」从「{btn.FunctionName}」改为「{ButtonFunc.NameOf(code)}」。\n\n" +
-                "修改后该键将不再执行原功能，请确认（改错了可在 1.5 秒内点回原功能）。",
-                "修改按键", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning);
-            if (r != System.Windows.MessageBoxResult.OK) return;
+            BuildFuncOptions(code);
+            // 按钮功能改为非宏后清空宏勾选：否则切到宏 Tab 时仍会残留上次选中的宏 ID（假选中）
+            if (code != ButtonConfig.FuncCode.Macro) ClearMacroSelection();
         }
-        ApplyEntryChange(btn, code, param);
-        BuildFuncOptions(code);
     }
 
-    /// <summary>entry 默认功能（用于风险确认判定：改回自身默认不算危险）。</summary>
-    private static byte DefaultFuncFor(int entryIndex) => entryIndex switch
+    /// <summary>左键确认弹窗「我知道了」→ 关闭弹窗并建立左键选中态、展开右栏（改键在选功能时执行）。</summary>
+    private void ConfirmLeftBtnChange()
     {
-        0 => ButtonConfig.FuncCode.Left,
-        1 => ButtonConfig.FuncCode.Right,
-        4 => ButtonConfig.FuncCode.Middle,
-        _ => 0xFF,
-    };
+        LeftBtnConfirmVisible = false;
+        SelectButtonCore(0);
+    }
 
-    private void ApplyEntryChange(ButtonItem btn, byte code, byte param)
+    /// <summary>左键改键风险说明（文案既定，不润色）。</summary>
+    private const string LeftBtnConfirmBody = "当前只有一个左键，改了后可能无法点击";
+
+    /// <summary>改目标 entry（全表副本 → 改一项 → 防抖整表写）。**无变化**（同功能码/同宏 ID）时
+    /// 不置待保存、不触发保存、不刷新 UI，返回 false——用户规格：点当前已选功能不应触发保存。</summary>
+    private bool ApplyEntryChange(ButtonItem btn, byte code, byte param)
     {
+        var cur = BtnCfg.Entries[btn.EntryIndex];
+        if (cur[0] == code && cur[1] == 0x00 && cur[2] == param) return false;
         BtnCfg.Entries[btn.EntryIndex] = new byte[] { code, 0x00, param };
         btn.FunctionName = ButtonFunc.NameOf(code);
         SaveStatusText = "待保存…";
         _buttonSaveDebounce?.Change(AutoSaveDelayMs, System.Threading.Timeout.Infinite);
+        NotifyMacroBoundChanged(); // 绑定关系变化 → 宏页未绑定警告同步
+        return true;
     }
 
     /// <summary>防抖到期：整表覆写 0x08（0x0C 唤醒 + 59 字节报告，含校验和）。</summary>
@@ -1383,6 +2363,8 @@ public class AppViewModel : ObservableObject, IDisposable
         _connectTimer.Dispose();
         _saveDebounce?.Dispose();
         _buttonSaveDebounce?.Dispose();
+        _armResetTimer?.Stop();
+        _recorder.Dispose();
         _toastTimer?.Stop();
     }
 

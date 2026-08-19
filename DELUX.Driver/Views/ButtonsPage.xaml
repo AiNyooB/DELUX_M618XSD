@@ -5,26 +5,38 @@
 
     <Page.Resources>
         <DataTemplate x:Key="IconMarkerTemplate">
-            <Grid Width="16" Height="16">
-                <Ellipse Width="14" Height="14" Fill="Transparent"
-                         Stroke="{DynamicResource AccentFillColorDefaultBrush}" StrokeThickness="1.5">
+            <!-- 普通态中性灰描边；选中态切强调色、描边加粗（由 IconMarker.IsSelected 驱动） -->
+            <Grid Width="20" Height="20">
+                <Ellipse Width="14" Height="14" Fill="Transparent">
                     <Ellipse.Style>
                         <Style TargetType="Ellipse">
+                            <Setter Property="Stroke" Value="{DynamicResource ControlStrongStrokeColorDefaultBrush}" />
+                            <Setter Property="StrokeThickness" Value="1.5" />
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Kind}" Value="Circle">
                                     <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsHovered}" Value="True">
+                                    <Setter Property="Stroke" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    <Setter Property="StrokeThickness" Value="3" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Stroke" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    <Setter Property="StrokeThickness" Value="3" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Ellipse.Style>
                 </Ellipse>
                 <Path Stretch="None" Width="14" Height="14"
-                      Fill="Transparent" Stroke="{DynamicResource AccentFillColorDefaultBrush}" StrokeThickness="1.5"
+                      Fill="Transparent"
                       StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                       Data="{Binding PathData}">
                     <Path.Style>
                         <Style TargetType="Path">
+                            <Setter Property="Stroke" Value="{DynamicResource ControlStrongStrokeColorDefaultBrush}" />
+                            <Setter Property="StrokeThickness" Value="1.5" />
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Kind}" Value="ArrowUp">
@@ -39,16 +51,18 @@
                                 <DataTrigger Binding="{Binding Kind}" Value="ArrowRight">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding IsHovered}" Value="True">
+                                    <Setter Property="Stroke" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    <Setter Property="StrokeThickness" Value="3" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Stroke" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    <Setter Property="StrokeThickness" Value="3" />
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Path.Style>
                 </Path>
-                <!-- 编号徽标：右上角小圆点 + 编号，与标签右上角编号一一对应。 -->
-                <Ellipse Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"
-                         Fill="{DynamicResource AccentFillColorDefaultBrush}" />
-                <TextBlock Text="{Binding Index}" FontSize="7.5" FontWeight="SemiBold" Foreground="White"
-                           HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,0,0"
-                           Width="10" TextAlignment="Center" />
             </Grid>
         </DataTemplate>
     </Page.Resources>
@@ -64,28 +78,19 @@
                      但不随右栏出现而变化——右栏出现时图片保持原尺寸，仅水平对齐从居中变为靠左，
                      整体平移、右侧让位被右栏盖住，绝不缩小）。
                      标签坐标保持 300 系（Canvas.Left/Top），微调位置只改数值。 -->
-                <Grid x:Name="CardHost" Margin="16" ClipToBounds="True">
+                <Grid x:Name="CardHost" Margin="16" ClipToBounds="False">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <!-- 660×660 坐标系 Canvas，LayoutTransform 整体缩放（Scale 由 code-behind 设置）。
-                         水平对齐：右栏收起时居中；右栏（覆盖层）出现时靠左平移（尺寸不变）。 -->                        <Canvas x:Name="MouseCanvas" Width="300" Height="506" VerticalAlignment="Center">
+                    </Grid.RowDefinitions>                        <!-- 300×506 坐标系 Canvas，LayoutTransform 整体缩放（Scale 由 code-behind 设置）。
+                             水平位置由 code-behind 计算（UpdateCanvasPosition）：无右栏 → 居中于整卡；
+                             有右栏 → 居中于右栏左侧可用区。自适应宽度，不再写死 70px 平移——
+                             侧边栏/窗口宽度变化时不会出现图片与右栏间的异常空隙。 -->
+                        <Canvas x:Name="MouseCanvas" Width="300" Height="506" VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
                         <Canvas.LayoutTransform>
                             <ScaleTransform x:Name="MouseScale" />
                         </Canvas.LayoutTransform>
-                        <Canvas.Style>
-                            <Style TargetType="Canvas">
-                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelection}" Value="True">
-                                        <Setter Property="HorizontalAlignment" Value="Left" />
-                                        <!-- （负 Margin 已撤销：图片左右透明区大，等用户裁掉透明区后仅靠左即可） -->
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>                        </Canvas.Style>                        <!-- 诊断边框：红色框 = 图片实际边界（300×506 随缩放）。确认布局后移除。 -->
-                        <Rectangle Width="300" Height="506" Fill="Transparent"
-                                   Stroke="Red" StrokeThickness="3" IsHitTestVisible="False" />
                         <!-- 鼠标示意图（外观随「其他设置」的产品外观切换） -->
                         <Image Source="{Binding AppearanceImageUri}" Width="300" Height="506" />
 
@@ -114,22 +119,16 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <RadioButton GroupName="BtnTag" Width="96"
+                                        <RadioButton GroupName="BtnTag" Width="Auto"
                                                      Style="{DynamicResource ButtonTagStyle}"
                                                      IsChecked="{Binding IsSelected, Mode=OneWay}"
                                                      ToolTip="{Binding Name}"
                                                      Command="{Binding DataContext.SelectButtonCmd, RelativeSource={RelativeSource AncestorType=Page}}"
                                                      CommandParameter="{Binding Index}">
                                             <Grid>
-                                                <TextBlock Text="{Binding FunctionName}" FontSize="13" FontWeight="SemiBold"
-                                                           HorizontalAlignment="Center" Margin="0,0,20,0" TextTrimming="CharacterEllipsis"
+                                                <TextBlock Text="{Binding FunctionName}" FontSize="{DynamicResource CaptionTextBlockFontSize}" FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                                <!-- 编号徽标：右上角，与位置图标上的编号一一对应。 -->
-                                                <Ellipse Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                         Fill="{DynamicResource AccentFillColorDefaultBrush}" />
-                                                <TextBlock Text="{Binding IconIndex}" FontSize="9" FontWeight="SemiBold" Foreground="White"
-                                                           HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                           Width="16" TextAlignment="Center" />
                                             </Grid>
                                         </RadioButton>
                                     </DataTemplate>
@@ -144,7 +143,7 @@
                     </Canvas>
 
                     <!-- 保存状态反馈 -->
-                    <TextBlock Grid.Row="1" Text="{Binding SaveStatusText}" FontSize="11" Margin="0,8,0,0"
+                    <TextBlock Grid.Row="1" Text="{Binding SaveStatusText}" FontSize="{DynamicResource CaptionTextBlockFontSize}" Margin="0,8,0,0"
                                HorizontalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Grid>
@@ -161,33 +160,35 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="分配功能" Style="{DynamicResource CardTitleTextStyle}" />
                                 <TextBlock Text="{Binding SelectedButton.Name}" Margin="8,0,0,0" VerticalAlignment="Center"
-                                           FontSize="13" FontWeight="SemiBold"
+                                           FontSize="{DynamicResource CaptionTextBlockFontSize}" FontWeight="SemiBold"
                                            Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                             </StackPanel>
 
                             <TabControl Margin="0,12,0,0" SelectedIndex="{Binding FuncTabIndex, Mode=OneWay}">
-                                <!-- 鼠标操作 Tab：11 个已验证功能（含 DPI 循环） -->
+                                <!-- 鼠标操作 Tab：11 个已验证功能（含 DPI 循环），ListView 单选 -->
                                 <TabItem Header="鼠标操作">
-                                    <ItemsControl ItemsSource="{Binding FuncOptions}" Margin="0,8,0,0">
-                                        <ItemsControl.ItemTemplate>
+                                    <ListView x:Name="FuncList" ItemsSource="{Binding FuncOptions}"
+                                              Style="{DynamicResource FuncOptionListStyle}"
+                                              SelectedValuePath="Code"
+                                              SelectedValue="{Binding SelectedButtonFuncCode, Mode=OneWay}"
+                                              SelectionChanged="OnFuncListSelectionChanged"
+                                              Margin="0,8,0,0">
+                                        <ListView.ItemTemplate>
                                             <DataTemplate>
-                                                <RadioButton GroupName="BtnFunc" Content="{Binding Name}" Margin="0,2"
-                                                             IsChecked="{Binding IsChecked}"
-                                                             Command="{Binding DataContext.SetFuncCmd, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                             CommandParameter="{Binding Code}" />
+                                                <TextBlock Text="{Binding Name}" FontSize="{DynamicResource CaptionTextBlockFontSize}" VerticalAlignment="Center" />
                                             </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
                                 </TabItem>
 
                                 <!-- 宏 Tab：宏列表单选展示（不用下拉框）；列表为空时显示空态提示 -->
-                                <TabItem Header="宏">
+                                <TabItem Header="快捷指令">
                                     <StackPanel Margin="0,12,0,0">
-                                        <TextBlock Text="选择宏" FontSize="12"
+                                        <TextBlock Text="选择快捷指令" FontSize="{DynamicResource CaptionTextBlockFontSize}"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                                         <!-- 空态：宏列表为空时提示 -->
-                                        <TextBlock Text="暂无宏，请到「快捷指令」页创建" FontSize="11" Margin="0,8,0,0"
+                                        <TextBlock Text="暂无快捷指令，请到「快捷指令」页创建" FontSize="{DynamicResource CaptionTextBlockFontSize}" Margin="0,8,0,0"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}">
                                             <TextBlock.Style>
@@ -217,14 +218,14 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <RadioButton GroupName="BtnMacro" Content="{Binding Name}" Margin="0,2"
-                                                                 IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                                 IsChecked="{Binding IsBindingSelected, Mode=OneWay}"
                                                                  Command="{Binding DataContext.SetMacroCmd, RelativeSource={RelativeSource AncestorType=Page}}"
                                                                  CommandParameter="{Binding Id}" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
 
-                                        <TextBlock Text="宏的具体内容请在「快捷指令」页编辑（后续版本支持）" FontSize="11"
+                                        <TextBlock Text="录制按键与播放方式请在「快捷指令」页编辑" FontSize="{DynamicResource CaptionTextBlockFontSize}"
                                                    Margin="0,8,0,0" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
@@ -235,7 +236,7 @@
                             <Border Margin="0,16,0,0" Padding="10,8" CornerRadius="4"
                                     Background="{DynamicResource SubtleFillColorSecondaryBrush}">
                                 <TextBlock Text="DPI+ / 快捷键 / 多媒体 / 浏览器等功能等待协议补齐，暂不提供。"
-                                           FontSize="11" TextWrapping="Wrap"
+                                           FontSize="{DynamicResource CaptionTextBlockFontSize}" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </Border>
                         </StackPanel>

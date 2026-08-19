@@ -193,3 +193,6 @@ wpf-main/
 *.lz
 *.lzma
 *.iso
+
+# 本地参考源码（WPF-UI 对照用，非项目依赖，不提交）
+wpfui-main/

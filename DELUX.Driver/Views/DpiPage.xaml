@@ -3,23 +3,100 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       Title="DPI 灵敏度">
 
-    <ScrollViewer Padding="24">
-        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+    <!-- 页面级大卡：原 MainWindow 内容区大卡迁至此（ButtonsPage 除外），背景层次与全局统一 -->
+    <Grid>
+        <Border Style="{DynamicResource CardStyle}">
+            <ScrollViewer Padding="24" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
             <!-- 页面标题：页名 + 一句话说明 -->
             <TextBlock Text="DPI 灵敏度" Style="{DynamicResource PageTitleTextStyle}" />
-            <TextBlock Text="调节指针移动快慢，最多 5 档，可一键切换。"
-                       Style="{DynamicResource PageSubtitleTextStyle}"
-                       Margin="0,4,0,16" />
+            <TextBlock Text="调整鼠标移动的灵敏速度" Style="{DynamicResource PageSubtitleTextStyle}" Margin="0,4,0,16" />
 
-            <!-- 空态引导卡片（Phase 1 占位；后续阶段替换为真实配置区） -->
-            <Border Style="{DynamicResource CardStyle}">
-                <StackPanel>
-                    <TextBlock Text="&#xEC51;" Style="{DynamicResource IconStyle}" />
-                    <TextBlock Text="DPI 设置即将开放" Style="{DynamicResource CardTitleTextStyle}" Margin="0,12,0,4" />
-                    <TextBlock Text="本模块将在「DPI 灵敏度」阶段接入：拖动滑块即可调节每一档灵敏度，修改后自动保存。"
-                               Style="{DynamicResource CardDescriptionTextStyle}" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+            <!-- 5 档卡片：一行两张，2+2+1（第 5 张左对齐）。
+                 整卡可点 = 设为当前；色点颜色 = 鼠标 DPI 指示灯色（红/绿/蓝/紫/黄，Wiki 3.2 节）。 -->
+            <ItemsControl ItemsSource="{Binding DpiLevels}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <RadioButton GroupName="DpiActive" Margin="4"
+                                     Style="{StaticResource DpiCardRadioStyle}"
+                                     IsChecked="{Binding IsActive, Mode=OneWay}"
+                                     Command="{Binding DataContext.SwitchLevelCmd, RelativeSource={RelativeSource AncestorType=Page}}"
+                                     CommandParameter="{Binding Index}">
+                            <StackPanel>
+                                <!-- 第一行：色点 + 档位名 | 启用勾选（hover/焦点才显示，Opacity 保留占位） -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <!-- 色点 = 该档固定颜色标识（红/绿/蓝/紫/黄，与鼠标 DPI 灯色对应），
+                                             不随选中态变化；当前档位由卡片描边指示 -->
+                                        <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                                 Fill="{Binding IndicatorBrush}" />
+                                        <TextBlock Text="{Binding Label}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   FontSize="{DynamicResource CaptionTextBlockFontSize}" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <!-- 上次使用徽章：仅本次启动从本地记忆恢复的档位显示（设备不支持上报档位，见 AGENTSK 2.4） -->
+                                        <Border Background="{DynamicResource AccentFillColorDefaultBrush}" CornerRadius="3"
+                                                Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                Visibility="{Binding IsRemembered, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="上次使用" FontSize="{DynamicResource CaptionTextBlockFontSize}"
+                                                       Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <!-- 启用勾选：hover/焦点才显示。显隐逻辑放外层容器（Opacity），
+                                         CheckBox 本身不套 Style，保持 Fluent 默认样式/尺寸 -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Opacity" Value="0" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <CheckBox IsChecked="{Binding Enabled}" Content="启用" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 第二行：数值文字（大号展示） | 数值输入框 -->
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Value}" VerticalAlignment="Center" FontSize="{DynamicResource SubtitleTextBlockFontSize}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="104" TextAlignment="Right" Padding="6,4" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- 第三行：滑块（40-4800；tick 每 400 一条为视觉刻度，40 倍数取整由 SliderValue 保证） -->
+                                <Slider Minimum="40" Maximum="4800" TickFrequency="400" TickPlacement="BottomRight"
+                                        IsMoveToPointEnabled="True" Margin="4,12,4,4"
+                                        Value="{Binding SliderValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </RadioButton>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- 保存状态反馈（AGENTS.md 3.3：待保存 / 正在保存 / 已保存） -->
+            <TextBlock Text="{Binding SaveStatusText}" FontSize="{DynamicResource CaptionTextBlockFontSize}" Margin="4,10,0,0"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </ScrollViewer>
+        </Border>
+    </Grid>
 </Page>

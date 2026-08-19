@@ -10,6 +10,16 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+REM ===== kill running instance if exists (avoid overwrite lock) =====
+tasklist /fi "imagename eq DELUX.Driver.exe" | find /i "DELUX.Driver.exe" >nul 2>nul
+if %errorlevel% equ 0 (
+    echo [INFO] DELUX.Driver.exe is running, killing it before build...
+    taskkill /f /im DELUX.Driver.exe >nul 2>nul
+    timeout /t 1 >nul
+) else (
+    echo [INFO] No running DELUX.Driver.exe detected.
+)
+
 echo ============================================
 echo  DELUX.Driver framework-dependent single-file publish
 echo  Recommended: fastest startup (exe ~0.8MB)
@@ -25,8 +35,8 @@ dotnet publish DELUX.Driver.csproj -c Release -r win-x64 --self-contained false 
 if %errorlevel% equ 0 (
     echo.
     echo [DONE] Published to: %~dp0publish-self-fd\DELUX.Driver.exe
-    echo.
-    echo If overwrite fails, close running DELUX.Driver.exe first.
+    echo Launching DELUX.Driver.exe...
+    start "" "%~dp0publish-self-fd\DELUX.Driver.exe"
 ) else (
     echo.
     echo [FAILED] Publish error, see output above.

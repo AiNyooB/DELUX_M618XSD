@@ -17,13 +17,13 @@
         <Border Grid.Row="0" Style="{DynamicResource CautionBannerStyle}"
                 CornerRadius="0" Padding="0"
                 Visibility="{Binding OfficialDriverRunning, Converter={StaticResource BoolToVis}}">
-            <Grid Margin="12,6">
+            <Grid Margin="{DynamicResource Space12}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="&#xE7BA;" Style="{DynamicResource IconStyle}" FontSize="16" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                <TextBlock Text="&#xE7BA;" Style="{DynamicResource IconStyle}" FontSize="{DynamicResource SubtitleTextBlockFontSize}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Margin="{DynamicResource MarginLeft8}" VerticalAlignment="Center"
                            Style="{DynamicResource CautionBannerTextStyle}" FontWeight="SemiBold"
                            Text="检测到官方驱动 Mouse.exe 正在运行，请先完全退出后再使用本软件，否则可能无法写入配置。" />
             </Grid>
@@ -37,28 +37,25 @@
             <!-- 设备态：左栏(设备信息+导航) + 内容 -->
             <Grid x:Name="DeviceGrid" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="240" />
+                    <!-- 侧边栏整体收窄（240→200），宽度让给内容区；卡片合并为一张紧凑卡 -->
+                    <ColumnDefinition Width="200" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Margin="8" Orientation="Vertical">
-                    <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,8">
+                <StackPanel Grid.Column="0" Margin="{DynamicResource Space8}" Orientation="Vertical">
+                    <!-- 设备信息 + 当前配置合并为一张紧凑卡片（紧凑 Padding，名称/电量/配置三行） -->
+                    <Border Style="{DynamicResource CardStyle}" Margin="{DynamicResource MarginBottom8}" Padding="{DynamicResource PaddingX12Y10}">
                         <StackPanel>
-                            <TextBlock Text="设备信息" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Text="{Binding DeviceName}" FontSize="14" FontWeight="SemiBold"
-                                       Margin="0,2,0,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <TextBlock Text="&#xE83D;" Style="{DynamicResource IconStyle}" FontSize="14" />
-                                <TextBlock Text="{Binding BatteryText}" Margin="6,0,0,0"
-                                           VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="{Binding DeviceName}" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Margin="{DynamicResource MarginTop4}">
+                                <TextBlock Text="&#xE83D;" Style="{DynamicResource IconStyle}" FontSize="{DynamicResource CaptionTextBlockFontSize}" />
+                                <TextBlock Text="{Binding BatteryText}" Margin="{DynamicResource MarginLeft5}" FontSize="{DynamicResource CaptionTextBlockFontSize}"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,8">
-                        <StackPanel>
-                            <TextBlock Text="当前配置" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-                            <ComboBox IsEnabled="False" SelectedIndex="0">
+                            <ComboBox IsEnabled="False" SelectedIndex="0" Margin="{DynamicResource MarginTop8}">
                                 <ComboBoxItem Content="默认配置（未连接）" />
                             </ComboBox>
                         </StackPanel>
@@ -69,56 +66,70 @@
                         <ListBoxItem Tag="Buttons" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE765;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="改键设置" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="改键设置" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem Tag="Macro" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8C3;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="快捷指令" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="快捷指令" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem Tag="Dpi" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xEC51;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="DPI 设置" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="DPI 设置" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem Tag="Perf" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xEC1B;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="性能设置" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="性能设置" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem Tag="Params" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE827;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="参数设置" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="参数设置" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem Tag="Profile" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE74E;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="配置管理" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="配置管理" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem Tag="Other" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE713;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="其他设置" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="其他设置" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                     </ListBox>
                 </StackPanel>
 
-                <Grid Grid.Column="1" Margin="8">
-                    <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                            CornerRadius="{DynamicResource CardCornerRadius}">
-                        <Frame x:Name="DeviceFrame" NavigationUIVisibility="Hidden" />
-                    </Border>
+                <Grid Grid.Column="1" Margin="{DynamicResource Space8}">
+                    <!-- 无外层卡片容器（各页面自带卡片；避免页面内再套大卡） -->
+                    <Frame x:Name="DeviceFrame" NavigationUIVisibility="Hidden" />
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- 左键改键风险确认：独立模态窗口（LeftButtonConfirmWindow），由 MainWindow.UpdateLeftBtnConfirm 开合。
+             内容树内遮罩盖不住系统标题栏，故用 WindowStyle=None 的窗口覆盖整个主窗口外框，
+             同时获得模态禁用、Esc/Enter、焦点管理（危险操作二次确认，AGENTS.md §3.4）。 -->
+        <!-- 全局 Toast 浮层（右下角，自动保存/操作反馈；文案来自 AppViewModel.ToastMessage） -->
+        <Border Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="{DynamicResource MarginRightBottom24}" Padding="{DynamicResource PaddingX16Y10}" IsHitTestVisible="False"
+                Visibility="{Binding ToastVisible, Converter={StaticResource BoolToVis}}">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
+                    <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding ToastMessage}" FontSize="{DynamicResource BodyTextBlockFontSize}"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Border>
     </Grid>
 </Window>

@@ -16,25 +16,26 @@
         <!-- ===== 行 0：文字区 ===== -->
         <StackPanel Grid.Row="0" HorizontalAlignment="Center" MaxWidth="460" Margin="0,0,0,24">
 
-            <!-- 标题：5 态切换 -->
+            <!-- 标题：5 态切换（用 PageTitleTextStyle：与其他页面标题一致且随主题变色，
+                 SubtitleTextBlockStyle 不设 Foreground，深色模式下会保持黑色） -->
             <Grid Margin="0,0,0,6">
-                <TextBlock Text="请连接设备" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                <TextBlock Text="请连接设备" Style="{DynamicResource PageTitleTextStyle}" HorizontalAlignment="Center"
                            Visibility="{Binding ShowDefaultTitle, Converter={StaticResource BoolToVis}}" />
-                <TextBlock Text="M618XSD连接中" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                <TextBlock Text="M618XSD连接中" Style="{DynamicResource PageTitleTextStyle}" HorizontalAlignment="Center"
                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-                <TextBlock Text="鼠标已连接" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                <TextBlock Text="鼠标已连接" Style="{DynamicResource PageTitleTextStyle}" HorizontalAlignment="Center"
                            Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
                 <!-- 失败态：带重试按钮 -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                             Visibility="{Binding ShowReconnect, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="M618XSD连接失败" Style="{StaticResource SubtitleTextBlockStyle}"
+                    <TextBlock Text="M618XSD连接失败" Style="{DynamicResource PageTitleTextStyle}"
                                VerticalAlignment="Center" />
                     <Button Content="重试" Command="{Binding ReconnectCmd}"
                             Style="{DynamicResource AccentButtonStyle}"
-                            Height="28" Padding="10,0" FontSize="13"
+                            Height="28" Padding="10,0" FontSize="{DynamicResource CaptionTextBlockFontSize}"
                             VerticalAlignment="Center" Margin="12,0,0,0" />
                 </StackPanel>
-                <TextBlock Text="连接失败" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                <TextBlock Text="连接失败" Style="{DynamicResource PageTitleTextStyle}" HorizontalAlignment="Center"
                            Visibility="{Binding ShowErrorTitle, Converter={StaticResource BoolToVis}}" />
             </Grid>
 
@@ -65,9 +66,9 @@
                         <Setter Property="CornerRadius" Value="8" />
                         <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
                         <Style.Triggers>
-                            <!-- 连接失败或驱动冲突时卡片背景变灰 -->
+                            <!-- 连接失败或驱动冲突时卡片背景变灰（随主题：浅色 #E8E8E8 / 深色 #3A3A3A） -->
                             <DataTrigger Binding="{Binding IsDimmed}" Value="True">
-                                <Setter Property="Background" Value="#E8E8E8" />
+                                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDimmedBrush}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

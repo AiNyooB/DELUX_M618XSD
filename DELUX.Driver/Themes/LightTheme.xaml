@@ -34,6 +34,7 @@
     <!-- 卡片/层背景（Card / Layer） -->
     <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#B3FFFFFF" />
     <SolidColorBrush x:Key="CardBackgroundFillColorSecondaryBrush" Color="#80F6F6F6" />
+    <SolidColorBrush x:Key="CardBackgroundFillColorDimmedBrush" Color="#E8E8E8" />
     <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#80FFFFFF" />
     <SolidColorBrush x:Key="LayerFillColorAltBrush" Color="#FFFFFF" />
 
@@ -89,6 +90,9 @@
     <!-- ── 键盘焦点边框 ────────────────────────────────────────────────── -->
     <SolidColorBrush x:Key="KeyboardFocusBorderColorBrush" Color="#BE000000" />
 
+    <!-- ── 遮罩（Scrim，模态弹窗背景，半透明黑——对齐 WPF-UI ContentDialogSmokeFill #4D000000 30% 黑） ── -->
+    <SolidColorBrush x:Key="ScrimBackgroundBrush" Color="#4D000000" />
+
     <!-- ════════════════════════════════════════════════════════════════════
          旧键兼容别名（渐进迁移期保留；新代码一律使用上方 Fluent 语义键）
          ════════════════════════════════════════════════════════════════════ -->
@@ -103,6 +107,14 @@
     <SolidColorBrush x:Key="AccentTextBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="NavActiveBackgroundBrush" Color="#EAF3FB" />
     <SolidColorBrush x:Key="NavHoverBackgroundBrush" Color="#0F000000" />
+
+    <!-- ── DPI 档位指示灯色（模拟硬件 DPI 键的 LED 色，与鼠标 DPI 键灯一一对应；见 M618XSD驱动功能Wiki.md 3.2 节） ── -->
+    <!-- 浅色背景（白卡片）上使用标准饱和色，保证辨识度。 -->
+    <SolidColorBrush x:Key="DpiStage1IndicatorBrush" Color="#E81123" />
+    <SolidColorBrush x:Key="DpiStage2IndicatorBrush" Color="#1A9E3E" />
+    <SolidColorBrush x:Key="DpiStage3IndicatorBrush" Color="#0067C0" />
+    <SolidColorBrush x:Key="DpiStage4IndicatorBrush" Color="#8A4BD8" />
+    <SolidColorBrush x:Key="DpiStage5IndicatorBrush" Color="#E0A000" />
 
     <!-- Fluent AccentButtonStyle 品牌色覆盖（浅色） -->
     <SolidColorBrush x:Key="SystemControlBackgroundAccentBrush" Color="#0067C0" />

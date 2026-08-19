@@ -36,14 +36,47 @@
     <!-- ── 间距（4px 基数的 Fluent 间距标度） ───────────────────────────── -->
     <Thickness x:Key="PagePadding">24</Thickness>
     <Thickness x:Key="CardPadding">16</Thickness>
-    <sys:Double x:Key="Space2">2</sys:Double>
-    <sys:Double x:Key="Space4">4</sys:Double>
-    <sys:Double x:Key="Space8">8</sys:Double>
-    <sys:Double x:Key="Space12">12</sys:Double>
-    <sys:Double x:Key="Space16">16</sys:Double>
-    <sys:Double x:Key="Space24">24</sys:Double>
-    <sys:Double x:Key="Space32">32</sys:Double>
-    <sys:Double x:Key="Space48">48</sys:Double>
+    <!-- 间距令牌供 Margin/Padding 直接引用，故为均匀 Thickness（历史事故：曾定义为 sys:Double，
+         用于 Margin 时布局抛 "XX不是属性Margin的有效值"，启动即崩） -->
+    <Thickness x:Key="Space2">2</Thickness>
+    <Thickness x:Key="Space4">4</Thickness>
+    <Thickness x:Key="Space8">8</Thickness>
+    <Thickness x:Key="Space12">12</Thickness>
+    <Thickness x:Key="Space16">16</Thickness>
+    <Thickness x:Key="Space24">24</Thickness>
+    <Thickness x:Key="Space32">32</Thickness>
+    <Thickness x:Key="Space48">48</Thickness>
+    <Thickness x:Key="ActionRowGap">0,8,0,0</Thickness>
+
+    <!-- ── 单边 / 组合间距令牌（供 Margin/Padding 直接引用，避免重复写死数字） ── -->
+    <Thickness x:Key="MarginLeft8">8,0,0,0</Thickness>
+    <Thickness x:Key="MarginLeft12">12,0,0,0</Thickness>
+    <Thickness x:Key="MarginRight8">0,0,8,0</Thickness>
+    <Thickness x:Key="MarginTop2">0,2,0,0</Thickness>
+    <Thickness x:Key="MarginTop4">0,4,0,0</Thickness>
+    <Thickness x:Key="MarginTop8">0,8,0,0</Thickness>
+    <Thickness x:Key="MarginTop10">0,10,0,0</Thickness>
+    <Thickness x:Key="MarginTop12">0,12,0,0</Thickness>
+    <Thickness x:Key="MarginTop14">0,14,0,0</Thickness>
+    <Thickness x:Key="MarginTop16">0,16,0,0</Thickness>
+    <Thickness x:Key="MarginTop24">0,24,0,0</Thickness>
+    <Thickness x:Key="MarginBottom8">0,0,0,8</Thickness>
+    <Thickness x:Key="MarginBottom12">0,0,12,0</Thickness>
+    <Thickness x:Key="MarginBottom16">0,0,16,0</Thickness>
+    <Thickness x:Key="MarginRight18">0,0,18,0</Thickness>
+    <Thickness x:Key="PaddingX12Y6">12,6</Thickness>
+    <Thickness x:Key="PaddingX16Y8">16,8</Thickness>
+    <Thickness x:Key="PaddingX12Y10">12,10</Thickness>
+    <Thickness x:Key="PaddingX16Y10">16,10</Thickness>
+    <Thickness x:Key="PaddingX8Y2">8,2</Thickness>
+    <Thickness x:Key="PaddingX8Y3">8,3</Thickness>
+    <Thickness x:Key="PaddingX8Y6">8,6</Thickness>
+    <Thickness x:Key="PaddingX6Y2">6,2</Thickness>
+    <Thickness x:Key="PaddingX6Y3">6,3</Thickness>
+    <Thickness x:Key="PaddingX5Y1">5,1</Thickness>
+    <Thickness x:Key="MarginLeft5">5,0,0,0</Thickness>
+    <Thickness x:Key="MarginLeft10">10,0,0,0</Thickness>
+    <Thickness x:Key="MarginRightBottom24">0,0,24,24</Thickness>
 
     <!-- ── 动效时长（Fluent 运动规范） ──────────────────────────────────── -->
     <Duration x:Key="ControlFasterAnimationDuration">00:00:00.083</Duration>

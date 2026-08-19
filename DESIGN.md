@@ -59,6 +59,8 @@
 
 对齐 Windows 11 Fluent 规范与 WPF Gallery（WinUI 语义命名）。本文件只定义**主题无关**的令牌，不包含任何颜色。
 
+> ⛔ **令牌集已冻结：不允许新增 DesignToken。** 新页面 / 新组件一律复用现有令牌（间距用 `Space*`/`Margin*`/`Padding*`、圆角用 `CardCornerRadius` 等，见下方各表）；间距/圆角/字号不够用时，用**现有令牌组合**或页面级样式解决，不新建全局令牌。确需调整现有令牌的值（如修正错误值），改前先与用户确认，改后同步更新本文档。
+
 ### 2.1 字体
 
 | Key | 类型 | 值 | 用途 |
@@ -99,14 +101,16 @@
 |---|---|---|---|
 | `PagePadding` | `Thickness` | 24 | 页面级内边距 |
 | `CardPadding` | `Thickness` | 16 | 卡片内边距 |
-| `Space2` | `Double` | 2 | 极紧凑间距 |
-| `Space4` | `Double` | 4 | 紧凑间距 |
-| `Space8` | `Double` | 8 | 小间距 |
-| `Space12` | `Double` | 12 | 中等间距 |
-| `Space16` | `Double` | 16 | 标准间距 |
-| `Space24` | `Double` | 24 | 大间距 |
-| `Space32` | `Double` | 32 | 较大间距 |
-| `Space48` | `Double` | 48 | 超大间距 |
+| `Space2` | `Thickness` | 2 | 均匀间距（Margin/Padding 直接引用） |
+| `Space4` | `Thickness` | 4 | 均匀间距（Margin/Padding 直接引用） |
+| `Space8` | `Thickness` | 8 | 均匀间距（Margin/Padding 直接引用） |
+| `Space12` | `Thickness` | 12 | 均匀间距（Margin/Padding 直接引用） |
+| `Space16` | `Thickness` | 16 | 均匀间距（Margin/Padding 直接引用） |
+| `Space24` | `Thickness` | 24 | 均匀间距（Margin/Padding 直接引用） |
+| `Space32` | `Thickness` | 32 | 均匀间距（Margin/Padding 直接引用） |
+| `Space48` | `Thickness` | 48 | 均匀间距（Margin/Padding 直接引用） |
+
+> ⚠️ `Space*` 必须保持 `Thickness` 类型（历史事故：曾定义为 `sys:Double` 并被用于 `Margin`，布局抛 `“12”不是属性“Margin”的有效值`，窗口启动即崩）。类型约定见 [§2.7](#27-令牌类型约定防止布局崩溃)。
 
 ### 2.6 动效
 
@@ -117,6 +121,29 @@
 | `ControlNormalAnimationDuration` | `Duration` | 00:00:00.250 (250ms) | 标准动效 |
 | `ControlSlowAnimationDuration` | `Duration` | 00:00:00.500 (500ms) | 慢速动效 |
 | `ControlFastOutSlowInKeySpline` | `String` | `0,0,0,1` | 标准加速曲线（快进慢出） |
+
+### 2.7 令牌类型约定（防止布局崩溃）
+
+WPF 属性对令牌的类型有**硬性要求**，类型不匹配在**布局时**才暴露：`Double` 令牌赋给 `Margin`（`Thickness`）时，首次 Measure 抛 `InvalidOperationException: “12”不是属性“Margin”的有效值`，`Window.Show()` 同步崩、窗口不显示（历史事故：`Space*` 曾定义为 `sys:Double` 且被用于 `Margin`，2026-08-18 启动即崩，见上）。
+
+**硬性规则：**
+
+1. **属性类型与令牌类型一一对应**：
+
+   | 属性 | 令牌类型 |
+   |---|---|
+   | `Margin` / `Padding` / `BorderThickness` | `Thickness` |
+   | `CornerRadius` | `CornerRadius` |
+   | `FontSize` / `Width` / `Height` / `MinWidth` / `MaxWidth` / `MinHeight` / `MaxHeight` / `Opacity` / `StrokeThickness` | `Double`（`sys:Double`） |
+   | `Duration` | `Duration` |
+
+2. **间距令牌（`Space*`）一律定义为均匀 `Thickness`**（供 `Margin`/`Padding` 直接引用），**禁止**定义成 `sys:Double`。确需纯数字间距（如 `Width`/`Height`）时另建 `Double` 令牌，命名区分用途（如 `SpaceWidth*`），**禁止一个令牌同时给两种属性用**。
+
+3. **引用前确认 `x:Key` 已定义**：`DynamicResource` 对缺失键**静默失败**（属性保持未设置、不报错），会留下隐形布局缺陷（margin 变 0）。引用前先在 `DesignTokens.xaml` 核对；**令牌集已冻结，缺失时不得新增令牌**，改用现有令牌（如用 `MarginTop14`/`Space12` 替代曾缺失的 `MarginTop12`）或页面级样式。
+
+4. **令牌集已冻结（见 §2 头注）：不允许新增 DesignToken。** 确需调整现有令牌的值时，须保持本规则的类型约定，改前与用户确认，改后同步更新本文档 §2 各表，避免类型漂移。
+
+5. **排查布局崩溃**：`Window.Show()` 抛 `“XX”不是属性“X”的有效值` → 在启动路径可见元素上找类型不匹配的令牌引用（典型：`Double` 上 `Margin`、`Thickness` 上 `FontSize`）。
 
 ---
 
@@ -205,6 +232,7 @@
 |---|---|---|
 | `CardBackgroundFillColorDefaultBrush` | `#B3FFFFFF` | 卡片默认背景 |
 | `CardBackgroundFillColorSecondaryBrush` | `#80F6F6F6` | 卡片次要背景 |
+| `CardBackgroundFillColorDimmedBrush` | `#E8E8E8` | 卡片变灰背景（连接页图片卡失败态；深色 `#3A3A3A`） |
 | `LayerFillColorDefaultBrush` | `#80FFFFFF` | 层默认背景 |
 | `LayerFillColorAltBrush` | `#FFFFFF` | 层交替背景 |
 
@@ -275,6 +303,12 @@
 |---|---|
 | `KeyboardFocusBorderColorBrush` | `#BE000000` |
 
+#### 遮罩（Scrim）
+
+| 语义键 | 色值 | 用途 |
+|---|---|---|
+| `ScrimBackgroundBrush` | `#4D000000`（30% 黑，对齐 WPF-UI `ContentDialogSmokeFill`） | 模态弹窗背景遮罩，**保留透明度**让底层内容可见 |
+
 ---
 
 ### 4.2 深色主题色板
@@ -296,6 +330,7 @@
 | 错误 `SystemFillColorCriticalBrush` | `#C42B1C` | `#FF99A4` |
 | 卡片背景 `CardBackgroundFillColorDefaultBrush` | `#B3FFFFFF` | `#0DFFFFFF` |
 | 控件默认填充 `ControlFillColorDefaultBrush` | `#B3FFFFFF` | `#0FFFFFFF` |
+| 遮罩 `ScrimBackgroundBrush` | `#4D000000`（30% 黑，对齐 WPF-UI `ContentDialogSmokeFill`） | `#4D000000`（30% 黑，浅深同值） |
 
 > 完整色值见 `Themes/DarkTheme.xaml` 文件，结构与浅色主题一一对应。
 
@@ -458,6 +493,105 @@
 - 按下：背景 `AccentFillColorTertiaryBrush`
 - 禁用：背景 `AccentFillColorDisabledBrush`、前景 `TextFillColorDisabledBrush`
 
+### 5.11 SecondaryButtonStyle（次要操作按钮）
+
+| 属性 | 值 |
+|---|---|
+| TargetType | `Button` |
+| 背景 | `{DynamicResource ControlFillColorDefaultBrush}`（浅填充） |
+| 前景色 | `{DynamicResource TextFillColorPrimaryBrush}` |
+| 描边 | `{DynamicResource ControlStrokeColorDefaultBrush}`（1px） |
+| 字体族 | `{DynamicResource AppFontFamily}` |
+| 字号 | 14 |
+| Padding | 16,8（与 PrimaryButtonStyle 同尺寸） |
+| 圆角 | `{DynamicResource ControlCornerRadius}` (4) |
+
+**状态**：
+- 悬停：背景 `ControlFillColorSecondaryBrush`、描边 `ControlStrokeColorSecondaryBrush`
+- 按下：背景 `ControlFillColorTertiaryBrush`
+- 禁用：背景 `ControlFillColorDisabledBrush`、前景 `TextFillColorDisabledBrush`
+
+> 用于弹窗「取消」等次级动作。**注意**：`TextButtonStyle` 无自定义模板（露出 Fluent 默认 chrome），与自研 `PrimaryButtonStyle` 并排时风格割裂，弹窗次级按钮一律用本样式。
+
+### 5.12 ComboBoxStyle（下拉选择框，隐式覆盖 Fluent 默认）
+
+> **隐式样式**（`TargetType="ComboBox"` 无 `x:Key`）：合并进 App.xaml 后自动覆盖 WPF 内置 Fluent 主题的默认样式，全站所有 ComboBox 生效，无需逐处引用。
+
+**背景**：WPF 内置 Fluent 主题的 ComboBox 有两个已知视觉缺陷——弹层背景用 Acrylic 半透明色（深色主题下透出桌面，即「透明层」），且弹层 1.5px 深色描边 + item 间 3px 缝隙导致 item 周围显「黑边」。本样式按官方模板结构（`wpf-main/.../Fluent.Light.xaml`）重写，仅替换视觉层，功能部件全部保留。
+
+| 属性 | 值 |
+|---|---|
+| TargetType | `ComboBox`（隐式） |
+| 背景 | `{DynamicResource ControlFillColorDefaultBrush}` |
+| 描边 | `{DynamicResource ControlStrokeColorDefaultBrush}`（1px） |
+| 圆角 | `{DynamicResource ControlCornerRadius}` (4) |
+| 弹层背景 | `{DynamicResource SolidBackgroundFillColorQuarternaryBrush}`（**不透明**，修复「透明层」） |
+| 弹层描边 | `{DynamicResource CardStrokeColorDefaultBrush}`（1px，修复「黑边」） |
+| 弹层圆角 | `{DynamicResource PopupCornerRadius}` (8) |
+| 弹层取整 | `UseLayoutRounding="True"`（替代官方 `SnapsToDevicePixels`：圆角在非整数边界（如 125% 缩放下 105.7×1.25=132.125px）上会掉角成直角，`UseLayoutRounding` 是 WPF 推荐的布局取整机制） |
+| 弹层边距 | `Margin="30,0,30,30"`（左/右/下 30px 给阴影留窗口空间，顶部 0 保持弹层贴紧组合框；Margin 计入弹层窗口尺寸，等效 WPF-UI 的 `EffectThicknessDecorator` 机制） |
+| 弹层宽度 | `MinWidth="{TemplateBinding ActualWidth}"` 在 **DropDownBorder** 上（不在 Popup 上）：窗口宽度=Border+边距，Border 本体宽度=组合框宽，弹层与下拉框宽度一致；若 MinWidth 在 Popup 上会被 60px 边距瓜分，弹层窄 60px（对照 WPF-UI ComboBox.xaml） |
+| 弹层阴影 | `DropShadowEffect`：`BlurRadius=20 Direction=270 Opacity=0.135 ShadowDepth=10 Color=#202020`（对照 WPF-UI 成熟实现，官方 Fluent 的 0.25/6 偏生硬） |
+| Padding | 12,5,0,7（右 0 为箭头列预留） |
+
+**模板部件（对照官方必须保留）**：
+- `PART_ContentPresenter`：显示选中项（`SelectionBoxItem` 绑定）
+- `ToggleButton`：全区域开合热区（`IsChecked` TwoWay 绑 `IsDropDownOpen`）
+- `PART_Popup` + `ScrollViewer`（`MaxDropDownHeight`）+ `ItemsPresenter`：下拉容器
+- `PART_EditableTextBox`：仅编辑态模板，`IsEditable=True` 时通过 `Style.Triggers` 切换到编辑模板
+
+**状态**：悬停 `ControlFillColorSecondaryBrush`、按下 `ControlFillColorTertiaryBrush`、禁用 `ControlFillColorDisabledBrush` + 前景 `TextFillColorDisabledBrush`；弹层带 `DropShadowEffect` 阴影与 167ms 展开动画。
+
+### 5.13 ComboBoxItemStyle（下拉项，隐式覆盖 Fluent 默认）
+
+> 同样为**隐式样式**，与 ComboBoxStyle 成对出现；两者必须一起覆盖，否则 item 仍走 Fluent 默认模板。
+
+| 属性 | 值 |
+|---|---|
+| TargetType | `ComboBoxItem`（隐式） |
+| Margin | 0（**去掉官方 3,2,3,0 缝隙**，让 hover 高亮铺满弹层宽度） |
+| Padding | 10,8 |
+| 圆角 | `{DynamicResource ControlCornerRadius}` (4) |
+| 前景色 | `{DynamicResource TextFillColorPrimaryBrush}` |
+
+**状态**：
+- 悬停：背景 `SubtleFillColorSecondaryBrush`
+- 选中：背景同悬停 + 左侧 3px 强调色竖条（`AccentFillColorDefaultBrush`）
+- 禁用：前景 `TextFillColorDisabledBrush`
+
+### 5.14 DpiCardRadioStyle（DPI 档位卡片，整卡可点）
+
+> Keyed 样式（`x:Key="DpiCardRadioStyle"`），TargetType `RadioButton`，用于 DPI 页 5 档卡片横排（UniformGrid）。**整卡即单选按钮**：点卡片空白处 = 设为当前；卡片内的 TextBox/CheckBox 各自拦截点击，不误触切档。
+
+| 属性 | 值 |
+|---|---|
+| Cursor | Hand |
+| 模板 | `Border`（卡片：`CardBackgroundFillColorDefaultBrush` 底 + `CardStrokeColorDefaultBrush` 描边 + `CardCornerRadius`）+ `ContentPresenter` |
+
+**状态触发器**（卡片 Border 上，数据源 = 卡片绑定的档位项）：
+- 当前档（`IsChecked=True`）：描边 `AccentFillColorDefaultBrush`、1.5px
+- 数值非法（`HasError=True`，优先级高）：描边 `SystemFillColorCriticalBrush` 1.5px + tooltip「请输入 40-4800 且为 40 的倍数」
+
+**卡片内容约定**（数据模板内，三行结构）：
+- 第一行：色点 10px（`IndicatorBrush`，固定色模拟鼠标 DPI 指示灯：红/绿/蓝/紫/黄 = DPI 1..5，不随主题、**不随选中态**——仅作该档颜色标识）+ 档位名；右侧启用勾选（**hover/焦点才显示**，Opacity 0↔1 保留占位）；**当前档位指示 = 卡片描边**（选中态强调色 1.5px，色点不参与指示）
+- 第二行：数值大字（26px，绑定 `Value`，仅展示）+ 数值输入框（104px）
+- 第三行：`Slider` Min 40 / Max 4800、TickFrequency 400（视觉刻度）、`IsMoveToPointEnabled`，TwoWay 绑定 `SliderValue`（VM 辅助属性：get=最近合法值、set=40 倍数取整后写回 `Value`，保证滑块输出恒合法，校验/保存逻辑不动）
+
+### 5.15 ButtonTagStyle（改键页按钮标签，整块可点）
+
+> Keyed 样式（`x:Key="ButtonTagStyle"`），TargetType `RadioButton`，用于改键设置页 10 个可编程按钮标签（WrapPanel 两行 5+5）。整块可点 = 选中按钮。
+
+| 属性 | 值 |
+|---|---|
+| Cursor | Hand |
+| 模板 | `Border`（`SubtleFillColorSecondaryBrush` 底 + `CardStrokeColorDefaultBrush` 描边 + `ControlCornerRadius` 圆角）+ `ContentPresenter` |
+
+**状态触发器**（Border 上，颜色全在 Style Setter——本地值会压触发器）：
+- 悬停：背景 `ControlFillColorSecondaryBrush`
+- 选中：描边 `AccentFillColorDefaultBrush` 1.5px + 背景 `SubtleFillColorTertiaryBrush`
+
+**内容约定**（数据模板内）：按钮名（13px SemiBold）+ 当前功能名（11px 次要色）。
+
 ---
 
 ## 6. 主题切换机制
@@ -595,11 +729,12 @@ private void SetTheme(string? mode)
 3. 命名规范：`{用途}Style`，如 `ComboBoxStyle`、`ToggleSwitchStyle`
 4. 避免在页面 XAML 中硬编码色值/字号/间距
 
-### 8.5 添加新设计令牌
+### 8.5 使用现有设计令牌（令牌集已冻结，禁止新增）
 
-1. 主题无关的令牌（如新的间距值、圆角）添加到 `DesignTokens.xaml`
-2. 主题相关的颜色值添加到 `LightTheme.xaml` 和 `DarkTheme.xaml`（两边同步添加）
-3. 遵循 Fluent/WinUI 命名规范，使用 `PascalCase` 键名
+1. **`DesignTokens.xaml` 不允许新增令牌**（令牌集已冻结，见 §2 头注）：新页面 / 新组件一律复用现有令牌——间距用 `Space*`（均匀）或 `Margin*`/`Padding*`（单边/组合），圆角用 `CardCornerRadius`，字号用 `*TextBlockFontSize`，动效用 `*AnimationDuration`
+2. 间距/圆角/字号不够用时，优先用**现有令牌组合**（如嵌套 Margin）或**页面级样式**（页面 `<Page.Resources>` 内定义，如 `MacroPage` 的 `ActionRowStyle`），不新建全局令牌
+3. 确需调整现有令牌的值（如修正错误值）时，改前先与用户确认，改后同步更新本文档 §2 对应表
+4. **遵守令牌类型约定（§2.7）**：`Margin`/`Padding`/`BorderThickness` 用 `Thickness` 令牌，`FontSize`/`Width`/`Height` 用 `Double` 令牌，禁止类型混用；`Space*` 间距令牌必须是 `Thickness`
 
 ### 8.6 主题切换注意事项
 

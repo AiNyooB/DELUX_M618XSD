@@ -4,8 +4,10 @@
       xmlns:local="clr-namespace:DeluxDriver"
       Title="其他设置">
 
-    <ScrollViewer Padding="24" HorizontalScrollBarVisibility="Auto">
-        <Grid>
+    <Grid>
+        <Border Style="{DynamicResource CardStyle}">
+            <ScrollViewer Padding="24" HorizontalScrollBarVisibility="Auto">
+                <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="320" />
                 <ColumnDefinition Width="300" />
@@ -69,6 +71,8 @@
                     Height="220">
                 <Image Source="{Binding AppearanceImageUri}" Stretch="Uniform" Margin="16" />
             </Border>
-        </Grid>
-    </ScrollViewer>
+            </Grid>
+        </ScrollViewer>
+        </Border>
+    </Grid>
 </Page>

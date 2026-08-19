@@ -10,15 +10,18 @@
                 <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
                 <!-- 设计令牌通用层（排版/圆角/间距/边框/动效，不随主题变化） -->
                 <ResourceDictionary Source="Themes/DesignTokens.xaml" />
-                <ResourceDictionary Source="Themes/LightTheme.xaml" />
                 <ResourceDictionary Source="Themes/Styles.xaml" />
                 <!-- WPF Gallery 字体样式体系（SubtitleTextBlockStyle / TitleTextBlockStyle 等） -->
                 <ResourceDictionary Source="Themes/WPFGallery/PageStyles.xaml" />
+                <!-- 主题字典必须放**最后**：WPF 对 MergedDictionaries 从后往前查找，末位优先级最高，
+                     才能覆盖 PresentationFramework.Fluent 的同名语义画笔（与 App.ApplyTheme 的 Add 一致） -->
+                <ResourceDictionary Source="Themes/LightTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <local:BoolInverseConverter x:Key="BoolInverse" />
             <local:BoolInverseToVisibilityConverter x:Key="BoolInverseToVis" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
             <local:GoldenRatioConverter x:Key="GoldenRatio" />
+            <local:IntEqualsConverter x:Key="IntToBool" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
