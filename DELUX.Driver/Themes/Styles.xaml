@@ -939,4 +939,47 @@
         </Style.Triggers>
     </Style>
 
+    <!-- ToggleSwitch（开关样式，基于 CheckBox）-->
+    <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Grid Background="{TemplateBinding Background}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <!--  pill 背景 -->
+                        <Border x:Name="Pill" Grid.Column="0" Width="40" Height="22" CornerRadius="11"
+                                Background="{DynamicResource ControlStrongFillColorDisabledBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                VerticalAlignment="Center" />
+                        <!--  滑块圆点 -->
+                        <Border x:Name="Knob" Grid.Column="0" Width="16" Height="16" CornerRadius="8"
+                                Margin="3" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                Background="White" />
+                        <!--  文字 -->
+                        <ContentPresenter Grid.Column="2" VerticalAlignment="Center"
+                                          RecognizesAccessKey="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Pill" Property="Background"
+                                    Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Pill" Property="BorderBrush"
+                                    Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

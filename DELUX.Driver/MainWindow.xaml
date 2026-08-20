@@ -93,10 +93,10 @@
                                 <TextBlock Text="参数设置" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
-                        <ListBoxItem Tag="Profile" Style="{DynamicResource NavItemStyle}">
+                        <ListBoxItem Tag="LocalConfig" Style="{DynamicResource NavItemStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE74E;" Style="{DynamicResource IconStyle}" />
-                                <TextBlock Text="配置管理" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
+                                <TextBlock Text="本地配置" Margin="{DynamicResource MarginLeft10}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem Tag="Other" Style="{DynamicResource NavItemStyle}">

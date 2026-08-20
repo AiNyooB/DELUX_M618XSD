@@ -1,25 +1,198 @@
 <Page x:Class="DeluxDriver.ParamsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:local="clr-namespace:DeluxDriver"
       Title="参数设置">
 
     <Grid>
         <Border Style="{DynamicResource CardStyle}">
-            <ScrollViewer Padding="24">
-                <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+            <ScrollViewer Padding="24" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+            <!-- 页面标题 -->
             <TextBlock Text="参数设置" Style="{DynamicResource PageTitleTextStyle}" />
-            <TextBlock Text="设置灯光效果与电源管理，兼顾个性与续航。"
+            <TextBlock Text="调整灯光效果与电源管理，兼顾个性与续航"
                        Style="{DynamicResource PageSubtitleTextStyle}"
                        Margin="0,4,0,16" />
 
-            <Border Style="{DynamicResource CardStyle}">
-                <StackPanel>
-                    <TextBlock Text="&#xE827;" Style="{DynamicResource IconStyle}" />
-                    <TextBlock Text="参数设置即将开放" Style="{DynamicResource CardTitleTextStyle}" Margin="0,12,0,4" />
-                    <TextBlock Text="本模块将在「灯光 / 电源」阶段接入：灯光模式与休眠时间（电源操作为风险项，会有明确提示）。"
-                               Style="{DynamicResource CardDescriptionTextStyle}" />
+            <!-- ══════════ 左右两栏 ══════════ -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- ═══ 左栏：电源管理 + 按键响应 ═══ -->
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+
+                    <!-- ══════════ 电源管理（风险区）══════════ -->
+                    <Border Style="{DynamicResource CardStyle}">
+                        <StackPanel Margin="4">
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="&#xE74E;" Style="{DynamicResource IconStyle}" />
+                                <TextBlock Text="电源管理" Style="{DynamicResource CardTitleTextStyle}"
+                                           Margin="8,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- 一级休眠 -->
+                            <TextBlock Text="一级休眠" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Minimum="0.5" Maximum="5" TickFrequency="1" TickPlacement="BottomRight"
+                                        IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
+                                        Value="{Binding Level1SleepMinutes, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="1" Width="60" TextAlignment="Right"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                    <Run Text="{Binding Level1SleepMinutes, StringFormat='{}{0:F1}', Mode=OneWay}" /><Run Text=" 分钟" />
+                                </TextBlock>
+                            </Grid>
+
+                            <!-- 睡眠时间 -->
+                            <TextBlock Text="睡眠时间" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       Margin="0,12,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Minimum="1" Maximum="30" TickFrequency="1" TickPlacement="BottomRight"
+                                        IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
+                                        Value="{Binding SleepMinutes, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="1" Width="60" TextAlignment="Right"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                    <Run Text="{Binding SleepMinutes, Mode=OneWay}" /><Run Text=" 分钟" />
+                                </TextBlock>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ══════════ 按键响应（去抖）══════════ -->
+                    <Border Style="{DynamicResource CardStyle}" Margin="0,12,0,0">
+                        <StackPanel Margin="4">
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE72E;" Style="{DynamicResource IconStyle}" />
+                                    <TextBlock Text="按键响应时间" Style="{DynamicResource CardTitleTextStyle}"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center" TextAlignment="Right"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                    <Run Text="{Binding DebounceMs, Mode=OneWay}" /><Run Text=" ms" />
+                                </TextBlock>
+                            </Grid>
+
+                            <Slider Minimum="1" Maximum="25" TickFrequency="1" TickPlacement="BottomRight"
+                                    IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
+                                    Value="{Binding DebounceMs, Mode=TwoWay}" />
+                            <TextBlock Text="数值越小响应越快，误触概率越高"
+                                       FontSize="{DynamicResource CaptionTextBlockFontSize}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
+
+                <!-- ═══ 右栏：灯光效果 ═══ -->
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                    <Border Style="{DynamicResource CardStyle}">
+                        <StackPanel Margin="4">
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE706;" Style="{DynamicResource IconStyle}" />
+                                    <TextBlock Text="灯光效果" Style="{DynamicResource CardTitleTextStyle}"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                          IsChecked="{Binding LightEnabled, Mode=TwoWay}"
+                                          VerticalAlignment="Center"
+                                          Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Grid>
+
+                            <!-- 灯效模式：4 张可选卡片，2 列排列 -->
+                            <TextBlock Text="灯效模式" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,6" />
+                            <ItemsControl ItemsSource="{Binding LightModeOptions}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <RadioButton GroupName="LightMode" Margin="4" Padding="12"
+                                                     Style="{StaticResource DpiCardRadioStyle}"
+                                                     Command="{Binding DataContext.SetLightModeCmd,
+                                                               RelativeSource={RelativeSource AncestorType=Page}}"
+                                                     CommandParameter="{Binding Value}">
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Icon}" FontSize="24"
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Text="{Binding Name}" FontSize="{DynamicResource CaptionTextBlockFontSize}"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 移动时关灯 -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="移动时关灯" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                          IsChecked="{Binding LightMoveOff, Mode=TwoWay}"
+                                          VerticalAlignment="Center"
+                                          Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Grid>
+
+                            <!-- 速度滑块 -->
+                            <TextBlock Text="速度" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       Margin="0,16,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Minimum="4" Maximum="8" TickFrequency="1" TickPlacement="BottomRight"
+                                        IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
+                                        Value="{Binding LightSpeed, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="1" Width="30" TextAlignment="Right"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"
+                                           Text="{Binding LightSpeed}"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Grid>
+
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!-- 保存状态反馈 -->
+            <TextBlock Text="{Binding SaveStatusText}" FontSize="{DynamicResource CaptionTextBlockFontSize}"
+                       Margin="4,10,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </StackPanel>
         </ScrollViewer>
         </Border>

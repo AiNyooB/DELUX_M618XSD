@@ -58,12 +58,27 @@ public class AppViewModel : ObservableObject, IDisposable
         // 左键改键风险确认（仅左键点击标签即弹，未选功能前先提示；见 SelectButton / ConfirmLeftBtnChange）。
         LeftBtnConfirmOkCmd = new RelayCommand(_ => ConfirmLeftBtnChange());
         LeftBtnConfirmCancelCmd = new RelayCommand(_ => CancelLeftBtnChange());
+        SetRateCmd = new RelayCommand(p => SetRate(p), _ => IsConnected && !IsBusy);
+        _setLightModeCmd = new RelayCommand(p => LightMode = System.Convert.ToInt32(p));
         _recorder.KeyEvent += OnKeyEvent;
         _recorder.MouseEvent += OnMouseEvent;
+        // 本地配置（槽位）：新建/删除/切换，编排在 AppViewModel（AGENTS 六：业务编排在 MainViewModel）。
+        NewSlotCmd = new RelayCommand(_ => NewSlot(), _ => CanManageSlots);
+        DeleteSlotCmd = new RelayCommand(slot => DeleteSlot(slot as SlotEntry), _ => CanDeleteSlot);
+        SwitchSlotCmd = new RelayCommand(slot => SwitchSlot(slot as SlotEntry), _ => CanSwitchSlot);
         InitDpi();
         InitButtons();
         InitMacros();
+        InitSlots();
         InitIconMarkers();
+        // 回报率/去抖/灯光自动保存防抖计时器
+        _rateSaveDebounce = new System.Threading.Timer(_ => Application.Current.Dispatcher.BeginInvoke(SaveRate),
+            null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+        _debounceSaveDebounce = new System.Threading.Timer(_ => Application.Current.Dispatcher.BeginInvoke(SaveDebounce),
+            null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+        _lightSaveDebounce = new System.Threading.Timer(_ => Application.Current.Dispatcher.BeginInvoke(SaveLight),
+            null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+        LoadLastRate();
 
         // 周期检测官方 Mouse.exe 是否运行（AGENTS.md 前置条件：必须退出官方驱动）。
         _driverTimer = new System.Threading.Timer(_ => CheckOfficialDriver(), null, 0, 3000);
@@ -75,6 +90,10 @@ public class AppViewModel : ObservableObject, IDisposable
         // 加载主题：优先持久化的用户选择，无记录则跟随系统（AGENTS.md §3.5 默认跟随系统）。
         LoadTheme();
     }
+        // 本地配置（槽位）命令声明（构造期赋值，见构造函数）。
+        public RelayCommand? NewSlotCmd { get; }
+        public RelayCommand? DeleteSlotCmd { get; }
+        public RelayCommand? SwitchSlotCmd { get; }
 
     #region 产品外观（本地持久化，不写设备）
 
@@ -535,6 +554,7 @@ public class AppViewModel : ObservableObject, IDisposable
         if (_hid.Wake() && _hid.WriteFeature(Dpi.ToBytes()))
         {
             SaveStatusText = "已保存 ✓";
+            SyncActiveSlot(); // 同步到激活槽位快照（设备不可读，靠本地副本，AGENTS.md §四）
         }
         else
         {
@@ -639,6 +659,289 @@ public class AppViewModel : ObservableObject, IDisposable
     {
         _toastTimer?.Stop();
         ToastMessage = null;
+    }
+
+    #endregion
+
+    #region 回报率（0x06）与去抖（0x05 部分字段）
+
+    /// <summary>回报率配置模型（0x06 报告，9 字节）。</summary>
+    private readonly RateConfig _rateConfig = new();
+
+    private int _currentRateHz = 500;
+    /// <summary>当前回报率（Hz）；切换单击卡片时更新，启动时从本地恢复。</summary>
+    public int CurrentRateHz
+    {
+        get => _currentRateHz;
+        set
+        {
+            if (SetProperty(ref _currentRateHz, value))
+            {
+                OnPropertyChanged(nameof(RateModeName));
+                SaveRate();
+            }
+        }
+    }
+
+    /// <summary>当前回报率模式名（对应卡片副标题）。</summary>
+    public string RateModeName => _currentRateHz switch
+    {
+        125 => "省电模式",
+        250 => "办公模式",
+        500 => "游戏模式",
+        1000 => "电竞模式",
+        _ => "未知",
+    };
+
+    /// <summary>切换回报率命令（参数 = Hz 值：125/250/500/1000）。</summary>
+    public RelayCommand SetRateCmd { get; }
+
+    private void SetRate(object? param)
+    {
+        // XAML 中 CommandParameter="125" 传的是字符串，需用 Convert 兼容字符串与数字两种入参。
+        if (param is null) return;
+        int hz = System.Convert.ToInt32(param);
+        if (!IsConnected) { ShowToast("请先连接鼠标"); return; }
+        if (OfficialDriverRunning)
+        {
+            ShowToast("检测到官方驱动运行中，已取消修改。请完全退出 Mouse.exe 后重试。");
+            return;
+        }
+        if (hz == _currentRateHz) return; // 已是当前值，不重复写入
+        CurrentRateHz = hz; // setter 内触发 SaveRate
+    }
+
+    /// <summary>回报率自动保存防抖计时器。</summary>
+    private System.Threading.Timer? _rateSaveDebounce;
+
+    /// <summary>回报率变更后自动写入设备（0x0C 唤醒 + 0x06 报告）。</summary>
+    private void SaveRate()
+    {
+        if (!IsConnected) return;
+        _rateConfig.Hz = _currentRateHz;
+        SaveStatusText = "正在保存…";
+        if (_hid.Wake() && _hid.WriteFeature(Codecs.EncodeRate(_rateConfig)))
+        {
+            SaveStatusText = "已保存 ✓";
+            SyncActiveSlot(); // 同步到激活槽位快照
+            SaveLastRate(_currentRateHz);
+        }
+        else
+        {
+            SaveStatusText = "保存失败";
+            ShowToast("保存失败：请确认已退出官方驱动后重试。");
+        }
+    }
+
+    private static string RateConfigPath()
+        => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DELUX.Driver", "rate.json");
+
+    private void LoadLastRate()
+    {
+        try
+        {
+            var path = RateConfigPath();
+            if (System.IO.File.Exists(path))
+            {
+                int v = int.Parse(System.IO.File.ReadAllText(path).Trim());
+                if (v is 125 or 250 or 500 or 1000) _currentRateHz = v;
+            }
+        }
+        catch { /* 读失败用默认 500 */ }
+    }
+
+    private void SaveLastRate(int hz)
+    {
+        try
+        {
+            var path = RateConfigPath();
+            var dir = System.IO.Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.WriteAllText(path, hz.ToString());
+        }
+        catch { /* 写失败不影响使用 */ }
+    }
+
+    // ---- 去抖（DebounceMs，0x05 报告 byte10 = ms/2）----
+    // 去抖是 LightConfig 的一个字段，但 PerfPage 独立暴露，需同步回 LightConfig。
+    // Light 其他字段由 ParamsPage 管理，此处仅提供 DebounceMs 的读写与自动保存。
+    private int _debounceMs = 6;
+    /// <summary>去抖时间（ms，1~25）；修改后自动写入设备（0x05 报告）。</summary>
+    public int DebounceMs
+    {
+        get => _debounceMs;
+        set
+        {
+            int v = Math.Clamp(value, 1, 25);
+            if (SetProperty(ref _debounceMs, v))
+            {
+                SaveStatusText = "待保存…";
+                _debounceSaveDebounce?.Change(AutoSaveDelayMs, System.Threading.Timeout.Infinite);
+            }
+        }
+    }
+
+    private System.Threading.Timer? _debounceSaveDebounce;
+
+    /// <summary>去抖变更后防抖写入0x05 报告（含灯光/电源/去抖全量）。</summary>
+    public void SaveDebounce()
+    {
+        if (!IsConnected) { SaveStatusText = ""; return; }
+        SaveStatusText = "正在保存…";
+        var cfg = _lightConfig;
+        cfg.DebounceMs = _debounceMs;
+        if (_hid.Wake() && _hid.WriteFeature(Codecs.EncodeLight(cfg)))
+        {
+            SaveStatusText = "已保存 ✓";
+            SyncActiveSlot(); // 同步到激活槽位快照（去抖属 0x05，随灯光一并落槽）
+        }
+        else
+        {
+            SaveStatusText = "保存失败";
+            ShowToast("保存失败：请确认已退出官方驱动后重试。");
+        }
+    }
+
+    // ---- 灯光配置（0x05 报告，ParamsPage 与 Debounce 共用）----
+    private readonly LightConfig _lightConfig = new();
+
+    /// <summary>灯光模式选项（5 种灯效，Radio 卡片数据源）。</summary>
+    public class LightModeItem
+    {
+        public int Value { get; init; }
+        public string Name { get; init; } = "";
+        public string Icon { get; init; } = "";
+    }
+    public List<LightModeItem> LightModeOptions { get; } = new()
+    {
+        new() { Value = 1, Name = "呼吸DPI", Icon = "\uE945" },
+        new() { Value = 2, Name = "常亮DPI", Icon = "\uE706" },
+        new() { Value = 3, Name = "循环呼吸", Icon = "\uE945" },
+        new() { Value = 4, Name = "霓虹", Icon = "\uE790" },
+    };
+
+    private RelayCommand _setLightModeCmd = null!;
+    public RelayCommand SetLightModeCmd => _setLightModeCmd;
+
+    private int _lightMode = 3;
+    /// <summary>灯光模式（0~4）。</summary>
+    public int LightMode
+    {
+        get => _lightMode;
+        set
+        {
+            if (SetProperty(ref _lightMode, value))
+            {
+                SaveStatusText = "待保存…";
+                OnPropertyChanged(nameof(LightEnabled));
+                if (value > 0) _lastLightMode = value;
+                _lightSaveDebounce?.Change(AutoSaveDelayMs, System.Threading.Timeout.Infinite);
+            }
+        }
+    }
+
+    /// <summary>灯光总开关：true=开（Mode>0） false=关（Mode=0）。</summary>
+    public bool LightEnabled
+    {
+        get => _lightMode != 0;
+        set
+        {
+            LightMode = value ? (_lastLightMode > 0 ? _lastLightMode : 3) : 0;
+        }
+    }
+
+    /// <summary>记住上次非零灯效模式（关灯前记录，开灯时恢复）。</summary>
+    private int _lastLightMode = 3;
+
+    private int _lightSpeed = 6;
+    /// <summary>灯光呼吸速度（4 最慢~8 最快）。</summary>
+    public int LightSpeed
+    {
+        get => _lightSpeed;
+        set
+        {
+            int v = Math.Clamp(value, 4, 8);
+            if (SetProperty(ref _lightSpeed, v))
+            {
+                SaveStatusText = "待保存…";
+                _lightSaveDebounce?.Change(AutoSaveDelayMs, System.Threading.Timeout.Infinite);
+            }
+        }
+    }
+
+    private bool _lightMoveOff;
+    /// <summary>移动时关灯（true=关 false=开，注意与协议 MoveOff bit 含义相反）。</summary>
+    public bool LightMoveOff
+    {
+        get => _lightMoveOff;
+        set
+        {
+            if (SetProperty(ref _lightMoveOff, value))
+            {
+                SaveStatusText = "待保存…";
+                _lightSaveDebounce?.Change(AutoSaveDelayMs, System.Threading.Timeout.Infinite);
+            }
+        }
+    }
+
+    private int _sleepMinutes = 10;
+    /// <summary>二级睡眠时间（分钟，1~60）。</summary>
+    public int SleepMinutes
+    {
+        get => _sleepMinutes;
+        set
+        {
+            int v = Math.Clamp(value, 1, 60);
+            if (SetProperty(ref _sleepMinutes, v))
+            {
+                SaveStatusText = "待保存…";
+                _lightSaveDebounce?.Change(AutoSaveDelayMs, System.Threading.Timeout.Infinite);
+            }
+        }
+    }
+
+    private double _level1SleepMinutes = 0.5;
+    /// <summary>一级休眠时间（分钟，0.5~30）。</summary>
+    public double Level1SleepMinutes
+    {
+        get => _level1SleepMinutes;
+        set
+        {
+            double v = Math.Clamp(value, 0.5, 30);
+            if (SetProperty(ref _level1SleepMinutes, v))
+            {
+                SaveStatusText = "待保存…";
+                _lightSaveDebounce?.Change(AutoSaveDelayMs, System.Threading.Timeout.Infinite);
+            }
+        }
+    }
+
+    private System.Threading.Timer? _lightSaveDebounce;
+
+    /// <summary>灯光/去抖配置变更后防抖写入0x05 报告。</summary>
+    private void SaveLight()
+    {
+        if (!IsConnected) { SaveStatusText = ""; return; }
+        var cfg = _lightConfig;
+        cfg.Mode = _lightMode;
+        cfg.MoveOff = _lightMoveOff;
+        cfg.BreathSpeed = _lightSpeed;
+        cfg.SleepMinutes = _sleepMinutes;
+        cfg.Level1SleepMinutes = _level1SleepMinutes;
+        cfg.DebounceMs = _debounceMs;
+        SaveStatusText = "正在保存…";
+        if (_hid.Wake() && _hid.WriteFeature(Codecs.EncodeLight(cfg)))
+        {
+            SaveStatusText = "已保存 ✓";
+            SyncActiveSlot(); // 同步到激活槽位快照（灯光/去抖/睡眠全量）
+        }
+        else
+        {
+            SaveStatusText = "保存失败";
+            ShowToast("保存失败：请确认已退出官方驱动后重试。");
+        }
     }
 
     #endregion
@@ -2025,7 +2328,8 @@ public class AppViewModel : ObservableObject, IDisposable
         return true;
     }
 
-    /// <summary>防抖到期：整表覆写 0x08（0x0C 唤醒 + 59 字节报告，含校验和）。</summary>
+    /// <summary>防抖到期：整表覆写 0x08（0x0C 唤醒 + 59 字节报告，含校验和），
+    /// 并补发 0x09 宏数据（官方时序：0x0C → 0.2s → 0x08 → 0.2s → 0x09×3 per slot）。</summary>
     public void SaveButtons()
     {
         if (!IsConnected) { SaveStatusText = ""; return; }
@@ -2036,16 +2340,52 @@ public class AppViewModel : ObservableObject, IDisposable
             return;
         }
         SaveStatusText = "正在保存…";
-        if (_hid.Wake() && _hid.WriteFeature(BtnCfg.ToBytes()))
+        if (_hid.Wake())
         {
-            SaveButtonsTable(); // 设备写成功后持久化全表副本（本地维护，见 AGENTSK 6 节）
-            SaveStatusText = "已保存 ✓";
-            ShowToast("已保存按键映射");
+            Thread.Sleep(200); // 0x0C → 0x08 间隔（官方时序，见 AGENTSK 2.3d）
+            if (_hid.WriteFeature(BtnCfg.ToBytes()))
+            {
+                SendMacroDataIfAny(); // 0x08 后补发 0x09 宏数据（Phase 3 此前缺失）
+                SaveButtonsTable();   // 设备写成功后持久化全表副本（本地维护，见 AGENTSK 6 节）
+                SaveStatusText = "已保存 ✓";
+                SyncActiveSlot(); // 同步到激活槽位快照（按键映射 + 宏绑定全量）
+                ShowToast("已保存按键映射");
+            }
+            else
+            {
+                SaveStatusText = "保存失败";
+                ShowToast($"保存失败：{_hid.LastErrorMessage}。请确认已退出官方驱动后重试。");
+            }
         }
         else
         {
             SaveStatusText = "保存失败";
             ShowToast($"保存失败：{_hid.LastErrorMessage}。请确认已退出官方驱动后重试。");
+        }
+    }
+
+    /// <summary>扫描 0x08 按键表中所有标记为「宏」的条目，对每个被引用的宏槽位，
+    /// 从本地宏列表取数据发 0x09×3 分块到设备（官方时序要求 0x08→0x09 间隔 0.2s）。
+    /// 参考 Phase 2 MouseDriverClient/MainViewModel.cs SendMacroDataIfAny()。</summary>
+    private void SendMacroDataIfAny()
+    {
+        var macroIds = new HashSet<int>();
+        foreach (var ent in BtnCfg.Entries)
+            if (ent[0] == ButtonConfig.FuncCode.Macro && ent[2] >= 1 && ent[2] <= MaxMacroSlots)
+                macroIds.Add(ent[2]);
+        if (macroIds.Count == 0) return;
+
+        foreach (var mid in macroIds)
+        {
+            var macro = Macros.FirstOrDefault(m => m.Id == mid);
+            if (macro == null || macro.Config.Actions.Count == 0) continue;
+            Thread.Sleep(200); // 0x08 → 0x09 间隔（AGENTSK 2.3d）
+            var chunks = macro.Config.BuildMacroChunks();
+            foreach (var chunk in chunks)
+            {
+                if (!_hid.WriteFeature(chunk)) break;
+                Thread.Sleep(200); // 0x09 chunk 之间间隔
+            }
         }
     }
 
@@ -2087,6 +2427,402 @@ public class AppViewModel : ObservableObject, IDisposable
 
     #endregion
 
+    #region 本地配置（槽位，纯软件层；设备无配置槽位，AGENTS.md §3.6）
+
+    /// <summary>本地配置槽位软上限（防止误建过多；实际数量动态，可大于 4，「4」仅为排版常量）。</summary>
+    private const int MaxSlots = 20;
+
+    /// <summary>当前激活槽位 Id（设备配置跟随此槽位；各配置页自动保存即写入它）。
+    /// 切换激活槽位 = 全量写 8 条报告到设备（危险操作：二次确认 + 进度 + 回滚）。</summary>
+    private int _activeSlotId = 1;
+
+    /// <summary>本地配置槽位列表（含内置槽 1，不可删除）。</summary>
+    public ObservableCollection<SlotEntry> Slots { get; } = new();
+
+    /// <summary>当前激活槽位名称（侧边栏设备卡 / 页面展示用）。</summary>
+    public string ActiveSlotName { get; private set; } = "配置 1";
+
+    /// <summary>是否允许管理槽位（有槽位才可删除）。</summary>
+    public bool CanManageSlots => Slots.Count > 0;
+    /// <summary>是否允许删除（存在可删的动态槽，即第 5 个起；前 4 个为排版基准不可删）。</summary>
+    public bool CanDeleteSlot => Slots.Any(s => s.IsDeletable);
+    /// <summary>是否允许切换（已连接 + 多于 1 个槽位）。</summary>
+    public bool CanSwitchSlot => IsConnected && Slots.Count > 1;
+
+    /// <summary>切换操作进行中（禁用相关控件，防重入）。</summary>
+    private bool _switching;
+    public bool IsSwitching { get => _switching; set => SetProperty(ref _switching, value); }
+
+    /// <summary>切换进度文案（「正在应用第 3/8 步…」 / 「正在恢复原配置…」）。</summary>
+    public string SwitchProgress { get => _switchProgress; set => SetProperty(ref _switchProgress, value); }
+    private string _switchProgress = "";
+
+    /// <summary>本地配置持久化路径（每槽全套快照 + activeSlotId，跨重启不丢）。</summary>
+    private static string ProfilesConfigPath()
+        => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DELUX.Driver", "profiles.json");
+
+    // ---------- 生命周期 ----------
+
+    private void InitSlots()
+    {
+        LoadSlots();
+        if (Slots.Count == 0)
+        {
+            // 首次运行：内置槽 1 = 出厂默认。设备不支持读回配置（AGENTS.md §四），故不抓取设备状态。
+            var first = new SlotEntry { Id = 1, Name = "配置 1", Data = FactoryDefaultProfile(), LastModified = DateTime.Now };
+            first.IsActive = true;
+            Slots.Add(first);
+            _activeSlotId = 1;
+        }
+        ActiveSlotName = Slots.FirstOrDefault(s => s.Id == _activeSlotId)?.Name ?? "配置 1";
+        PersistSlots();
+    }
+
+    /// <summary>启动时从本地加载槽位列表；损坏/读失败 → 空列表（走首次运行分支）。</summary>
+    private void LoadSlots()
+    {
+        try
+        {
+            var path = ProfilesConfigPath();
+            if (!System.IO.File.Exists(path)) return;
+            var list = System.Text.Json.JsonSerializer.Deserialize<List<SlotEntry>>(System.IO.File.ReadAllText(path));
+            if (list == null) return;
+            foreach (var s in list)
+            {
+                s.IsActive = (s.Id == _activeSlotId);
+                Slots.Add(s);
+            }
+            if (Slots.Count > 0)
+            {
+                var activeSlot = Slots.FirstOrDefault(s => s.Id == _activeSlotId) ?? Slots[0];
+                _activeSlotId = activeSlot.Id;
+                foreach (var s in Slots) s.IsActive = (s.Id == _activeSlotId);
+            }
+        }
+        catch { /* 损坏/读失败 → 空列表，走首次运行 */ }
+    }
+
+    /// <summary>持久化槽位列表 + 激活槽位 Id 到本地。</summary>
+    private void PersistSlots()
+    {
+        try
+        {
+            var path = ProfilesConfigPath();
+            var dir = System.IO.Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(Slots));
+        }
+        catch { /* 写失败不影响本次使用 */ }
+    }
+
+    // ---------- 槽位内容：出厂默认 / 当前状态快照 ----------
+
+    /// <summary>出厂默认 ProfileData（与「恢复出厂」同一套默认值，见 ProfileData 默认初始化器）。</summary>
+    private static ProfileData FactoryDefaultProfile() => new();
+
+    /// <summary>从当前应用状态构建快照（写入激活槽位用）。
+    /// 仅读内存本地副本，不读设备（设备不支持读回配置，AGENTS.md §四）。</summary>
+    private ProfileData BuildSnapshot()
+    {
+        var p = new ProfileData
+        {
+            DpiValues = _dpiLevels.Select(l => { l.TryParse(out int v); return v; }).ToArray(),
+            DpiEnabled = _dpiLevels.Select(l => l.Enabled).ToArray(),
+            ActiveLevel = _activeLevel,
+            LightMode = _lightMode,
+            LightMoveOff = _lightMoveOff,
+            LightSpeed = _lightSpeed,
+            DebounceMs = _debounceMs,
+            SleepMinutes = _sleepMinutes,
+            Level1SleepMinutes = _level1SleepMinutes,
+            RateHz = _currentRateHz,
+            ButtonEntries = BtnCfg.Entries.Select(e => new[] { (int)e[0], (int)e[1], (int)e[2] }).ToArray(),
+            Macros = Macros.Select(m => new MacroConfig
+            {
+                Id = m.Id,
+                Name = m.Name,
+                Method = m.Config.Method,
+                LoopCount = m.Config.LoopCount,
+                Actions = m.Config.Actions.Select(a => new MacroAction { Code = a.Code, Press = a.Press, DelayMs = a.DelayMs }).ToList(),
+            }).ToList(),
+        };
+        return p;
+    }
+
+    /// <summary>把 ProfileData 应用到应用内存状态（切换槽位时使用；不写设备）。
+    /// 直接赋字段避免触发 setter 的保存/防抖副作用；最后统一刷新 UI。</summary>
+    private void ApplyProfileToState(ProfileData p)
+    {
+        _activeLevel = p.ActiveLevel;
+        _lightMode = p.LightMode;
+        _lightMoveOff = p.LightMoveOff;
+        _lightSpeed = p.LightSpeed;
+        _debounceMs = p.DebounceMs;
+        _sleepMinutes = p.SleepMinutes;
+        _level1SleepMinutes = p.Level1SleepMinutes;
+        _currentRateHz = p.RateHz;
+        SyncDpiConfigFrom(p);
+        _lightConfig.Mode = p.LightMode;
+        _lightConfig.MoveOff = p.LightMoveOff;
+        _lightConfig.BreathSpeed = p.LightSpeed;
+        _lightConfig.SleepMinutes = p.SleepMinutes;
+        _lightConfig.Level1SleepMinutes = p.Level1SleepMinutes;
+        _lightConfig.DebounceMs = p.DebounceMs;
+        _rateConfig.Hz = p.RateHz;
+        BtnCfg.Entries = p.ButtonEntries.Select(e => new byte[] { (byte)e[0], (byte)e[1], (byte)e[2] }).ToArray();
+        // 切槽后同步改键页按钮标签（FunctionName 是缓存值，必须主动刷新，见 SwitchSlot 链路）
+        foreach (var btn in Buttons)
+            btn.FunctionName = ButtonFunc.NameOf(BtnCfg.Entries[btn.EntryIndex][0]);
+        for (int i = 0; i < _dpiLevels.Count; i++)
+        {
+            _dpiLevels[i].Value = p.DpiValues[i].ToString();
+            _dpiLevels[i].Enabled = p.DpiEnabled[i];
+            _dpiLevels[i].IsActive = (i + 1) == p.ActiveLevel;
+        }
+        SyncMacrosFrom(p.Macros);
+    }
+
+    /// <summary>把快照中的宏列表对齐到应用 Macros 集合（按 Id 对齐，保留已有 BoundCheck）。</summary>
+    private void SyncMacrosFrom(List<MacroConfig> target)
+    {
+        var existing = Macros.ToDictionary(m => m.Id);
+        var keep = new HashSet<int>(target.Select(m => m.Id));
+        foreach (var id in existing.Keys.ToList())
+        {
+            if (!keep.Contains(id))
+            {
+                var m = Macros.FirstOrDefault(x => x.Id == id);
+                if (m != null) Macros.Remove(m);
+            }
+        }
+        foreach (var cfg in target)
+        {
+            if (existing.TryGetValue(cfg.Id, out var item))
+            {
+                item.Config.Method = cfg.Method;
+                item.Config.LoopCount = cfg.LoopCount;
+                item.Config.Actions = cfg.Actions;
+                item.Name = cfg.Name ?? "";
+                item.NotifyBoundChanged();
+            }
+            else
+            {
+                var newItem = new MacroItem { Id = cfg.Id, Config = cfg };
+                newItem.BoundCheck = () => IsMacroBound(newItem.Id);
+                if (string.IsNullOrWhiteSpace(newItem.Name)) newItem.Name = cfg.Name ?? "";
+                Macros.Add(newItem);
+            }
+        }
+        NotifyMacroListChanged();
+    }
+
+    /// <summary>把快照的 DPI 字段同步进协议层 DpiConfig（不触发保存副作用）。</summary>
+    private void SyncDpiConfigFrom(ProfileData p)
+    {
+        for (int i = 0; i < 5 && i < p.DpiValues.Length; i++) Dpi.Levels[i] = p.DpiValues[i];
+        for (int i = 5; i < 8; i++) Dpi.Levels[i] = 0;
+        byte bitmap = 0;
+        for (int i = 0; i < 5 && i < p.DpiEnabled.Length; i++)
+            if (p.DpiEnabled[i]) bitmap |= (byte)(1 << i);
+        Dpi.EnabledBitmap = bitmap;
+        if (p.ActiveLevel >= 1 && p.ActiveLevel <= 5) Dpi.ActiveLevel = (byte)p.ActiveLevel;
+    }
+
+    // ---------- 激活槽位快照同步（各配置页自动保存后调用） ----------
+
+    /// <summary>把当前应用状态写入激活槽位快照并落盘。
+    /// 仅在设备写成功后调用；切换过程中由 _switching 守卫跳过。</summary>
+    private void SyncActiveSlot()
+    {
+        if (_switching) return;
+        var slot = Slots.FirstOrDefault(s => s.Id == _activeSlotId);
+        if (slot == null) return;
+        slot.Data = BuildSnapshot();
+        slot.LastModified = DateTime.Now;
+        slot.RefreshDisplay();
+        PersistSlots();
+    }
+
+    // ---------- 槽位管理命令 ----------
+
+    private void NewSlot()
+    {
+        if (Slots.Count >= MaxSlots)
+        {
+            ShowToast($"最多支持 {MaxSlots} 个配置。");
+            return;
+        }
+        int nextId = Slots.Count == 0 ? 1 : Slots.Max(s => s.Id) + 1;
+        var slot = new SlotEntry { Id = nextId, Name = $"配置 {nextId}", Data = FactoryDefaultProfile(), LastModified = DateTime.Now };
+        Slots.Add(slot);
+        NotifySlotCommands();
+        PersistSlots();
+        ShowToast($"已新建「{slot.Name}」（出厂默认，切换后可调整）");
+    }
+
+    private void DeleteSlot(SlotEntry? slot)
+    {
+        if (slot == null) return;
+        if (!slot.IsDeletable)
+        {
+            ShowToast("前 4 个配置为排版基准，不可删除。");
+            return;
+        }
+        var r = System.Windows.MessageBox.Show(
+            $"确定要删除「{slot.Name}」吗？此操作不可撤销。",
+            "删除配置", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (r != System.Windows.MessageBoxResult.Yes) return;
+        Slots.Remove(slot);
+        if (_activeSlotId == slot.Id)
+        {
+            _activeSlotId = 1;
+            foreach (var s in Slots) s.IsActive = (s.Id == _activeSlotId);
+            ActiveSlotName = Slots.FirstOrDefault(s => s.Id == 1)?.Name ?? "配置 1";
+        }
+        NotifySlotCommands();
+        PersistSlots();
+        ShowToast("已删除配置");
+    }
+
+    private void NotifySlotCommands()
+    {
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    // ---------- 切换激活槽位（全量写设备 + 回滚） ----------
+
+    /// <summary>切换激活槽位：二次确认 → 备份本地快照 → 全量写 8 条报告 → 失败回滚。
+    /// preSnapshot 取自上位机本地已知状态，非设备读取（设备不支持读回配置，AGENTS.md §四）。
+    /// 回滚局限：preSnapshot 是「上位机最后写入的已知状态」，非设备实时状态；写入前须退出官方驱动，该边界受控。</summary>
+    private void SwitchSlot(SlotEntry? target)
+    {
+        if (target == null || !IsConnected) return;
+        if (target.Id == _activeSlotId) return; // 已是激活槽：不写设备（同类 no-op，见 SwitchLevel 守卫）
+        if (OfficialDriverRunning)
+        {
+            ShowToast("检测到官方驱动运行中，切换已取消。请完全退出 Mouse.exe 后重试。");
+            return;
+        }
+        var r = System.Windows.MessageBox.Show(
+            $"确定要切换到「{target.Name}」吗？\n将用该槽位的全套配置覆写当前设备设置。",
+            "切换配置", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+        if (r != System.Windows.MessageBoxResult.Yes) return;
+
+        IsSwitching = true;
+        _switching = true;
+        try
+        {
+            var preSnapshot = BuildSnapshot(); // 本地已知状态快照（非设备读取）
+            var targetData = target.Data.Clone();
+
+            // 先把目标应用到内存状态，UI 即时显示目标值
+            ApplyProfileToState(targetData);
+            SyncDpiConfig();
+
+            bool ok = WriteProfileToDevice(targetData);
+            if (ok)
+            {
+                _activeSlotId = target.Id;
+                foreach (var s in Slots) s.IsActive = (s.Id == target.Id);
+                ActiveSlotName = target.Name;
+                target.LastModified = DateTime.Now;
+                NotifySlotCommands();
+                PersistSlots();
+                SwitchProgress = "";
+                ShowToast($"已切换到「{target.Name}」");
+            }
+            else
+            {
+                // 失败回滚：用 preSnapshot 恢复内存状态 + 全量写回设备
+                SwitchProgress = "正在恢复原配置…";
+                ApplyProfileToState(preSnapshot);
+                SyncDpiConfig();
+                WriteProfileToDevice(preSnapshot);
+                SwitchProgress = "";
+                ShowToast("切换失败，已恢复到之前的配置。");
+            }
+        }
+        finally
+        {
+            _switching = false;
+            IsSwitching = false;
+        }
+    }
+
+    /// <summary>把 ProfileData 全量写入设备（0x0C→0x04→0x05→0x06→0x08→0x09×3，每步 0.2s 间隔）。
+    /// 返回是否全部成功；任一步失败立即中止（调用方负责回滚）。</summary>
+    private bool WriteProfileToDevice(ProfileData data)
+    {
+        // 0x0C 唤醒（打开数据设备，AGENTS.md 前置条件 2）
+        SwitchProgress = "正在唤醒设备…";
+        if (!_hid.Wake()) return false;
+        Sleep200();
+
+        // 0x04 DPI
+        SyncDpiConfigFrom(data);
+        SwitchProgress = "正在应用第 2/8 步：DPI…";
+        if (!_hid.WriteFeature(Dpi.ToBytes())) return false;
+        Sleep200();
+
+        // 0x05 灯光 + 电源
+        _lightConfig.Mode = data.LightMode;
+        _lightConfig.MoveOff = data.LightMoveOff;
+        _lightConfig.BreathSpeed = data.LightSpeed;
+        _lightConfig.SleepMinutes = data.SleepMinutes;
+        _lightConfig.Level1SleepMinutes = data.Level1SleepMinutes;
+        _lightConfig.DebounceMs = data.DebounceMs;
+        SwitchProgress = "正在应用第 3/8 步：灯光…";
+        if (!_hid.WriteFeature(Codecs.EncodeLight(_lightConfig))) return false;
+        Sleep200();
+
+        // 0x06 回报率
+        _rateConfig.Hz = data.RateHz;
+        SwitchProgress = "正在应用第 4/8 步：回报率…";
+        if (!_hid.WriteFeature(Codecs.EncodeRate(_rateConfig))) return false;
+        Sleep200();
+
+        // 0x08 按键映射（含宏绑定关系）
+        BtnCfg.Entries = data.ButtonEntries.Select(e => new byte[] { (byte)e[0], (byte)e[1], (byte)e[2] }).ToArray();
+        SwitchProgress = "正在应用第 5/8 步：按键映射…";
+        if (!_hid.WriteFeature(BtnCfg.ToBytes())) return false;
+        Sleep200();
+
+        // 0x09×3 宏数据（按 0x08 中绑定的宏槽位分块发送）
+        SwitchProgress = "正在应用第 6-8/8 步：宏数据…";
+        return WriteMacrosToDevice(data);
+    }
+
+    /// <summary>按 0x08 按键表中绑定的宏槽位，分块发送 0x09 宏数据（每块 0.2s 间隔，AGENTSK 2.3d）。</summary>
+    private bool WriteMacrosToDevice(ProfileData data)
+    {
+        var boundIds = new HashSet<int>();
+        foreach (var ent in data.ButtonEntries)
+            if (ent[0] == ButtonConfig.FuncCode.Macro && ent[2] >= 1 && ent[2] <= MaxMacroSlots)
+                boundIds.Add(ent[2]);
+        int step = 5;
+        foreach (var mid in boundIds)
+        {
+            var macro = data.Macros.FirstOrDefault(m => m.Id == mid);
+            if (macro == null || macro.Actions.Count == 0) continue;
+            Sleep200(); // 0x08 → 0x09 间隔
+            var chunks = macro.BuildMacroChunks();
+            for (int ci = 0; ci < chunks.Count; ci++)
+            {
+                step++;
+                SwitchProgress = $"正在应用第 {Math.Min(step, 8)}/8 步：宏数据…";
+                if (!_hid.WriteFeature(chunks[ci])) return false;
+                Sleep200(); // 0x09 chunk 之间间隔
+            }
+        }
+        return true;
+    }
+
+    private static void Sleep200() => System.Threading.Thread.Sleep(200);
+
+    #endregion
+
     #region 连接状态
 
     private bool _isConnected;
@@ -2095,10 +2831,11 @@ public class AppViewModel : ObservableObject, IDisposable
         get => _isConnected;
         set
         {
-            if (SetProperty(ref _isConnected, value))
+if (SetProperty(ref _isConnected, value))
             {
                 OnPropertyChanged(nameof(ShowDefaultTitle));
                 OnPropertyChanged(nameof(IsDimmed));
+                OnPropertyChanged(nameof(CanSwitchSlot)); // 切换按钮可用性随连接状态变化
             }
         }
     }
@@ -2428,6 +3165,9 @@ public class AppViewModel : ObservableObject, IDisposable
         _connectTimer.Dispose();
         _saveDebounce?.Dispose();
         _buttonSaveDebounce?.Dispose();
+        _rateSaveDebounce?.Dispose();
+        _debounceSaveDebounce?.Dispose();
+        _lightSaveDebounce?.Dispose();
         _armResetTimer?.Stop();
         _recorder.Dispose();
         _toastTimer?.Stop();
