@@ -47,7 +47,7 @@ public partial class MainWindow : Window, INavigationService
         ["Dpi"] = () => new DpiPage(),           // DPI 设置
         ["Perf"] = () => new PerfPage(),         // 性能设置（回报率 + 去抖）
         ["Params"] = () => new ParamsPage(),     // 参数设置（灯光 + 电源）
-        ["Profile"] = () => new ProfilePage(),   // 配置管理
+        ["LocalConfig"] = () => new LocalConfigPage(),   // 本地配置（原「配置管理」，Phase 7 重写）
         ["Other"] = () => new OtherPage(),       // 其他设置（帮助与反馈）
     };
 

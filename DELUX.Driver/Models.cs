@@ -74,26 +74,98 @@ namespace DeluxDriver
         }
     }
 
-    /// <summary>灯光（呼吸/常亮/关闭/流光）+ 电源管理 + 去抖（依据：HID协议逆向报告.md 0x05 报告）。</summary>
+    /// <summary>灯光（0x05 报告，15 字节）+ 电源管理 + 去抖。
+    /// 默认值取自官方软件抓包实值，ToBytes() 默认输出与已验证的 Report05 完全一致。
+    /// 依据：HID协议逆向报告.md 3.2 节（已 USBPcap 验证）。</summary>
     public class LightConfig
     {
-        /// <summary>灯光模式：1=呼吸 2=常亮 3=关闭 4=流光（枚举值来自 Wiki）。</summary>
-        public byte Mode { get; set; } = 1;
+        public const int ReportId = 0x05;
+        public const int Length = 15;
+
+        /// <summary>灯光模式（byte3 低4位）：0=关闭 1=呼吸DPI 2=常亮DPI 3=循环呼吸 4=霓虹。</summary>
+        public int Mode { get; set; } = 3;
+        /// <summary>移动关灯：bit7=1 关闭功能、bit7=0 开启功能（UI 勾选"移动时关灯" = MoveOff=false）。</summary>
         public bool MoveOff { get; set; } = false;
-        /// <summary>呼吸速度档位（1..8，UI 直接展示档位）。</summary>
-        public int BreathSpeed { get; set; } = 4;
-        /// <summary>睡眠时间（分钟，1..60）。</summary>
+        /// <summary>呼吸速度（4最慢~8最快），编码 byte4 = 9 - 速度。</summary>
+        public int BreathSpeed { get; set; } = 6;
+        /// <summary>睡眠时间（分钟，1~60），编码 byte5 = (分钟 << 4) | 0x08。</summary>
         public int SleepMinutes { get; set; } = 10;
-        /// <summary>一级休眠（分钟，0.5..60）。</summary>
-        public int Level1SleepMinutes { get; set; } = 5;
-        /// <summary>去抖时间（毫秒，1..25）。</summary>
-        public int DebounceMs { get; set; } = 8;
+        /// <summary>一级休眠时间（分钟，0.5~60），编码 byte9 = 分钟×2 + 1。</summary>
+        public double Level1SleepMinutes { get; set; } = 0.5;
+        /// <summary>按键响应/去抖（毫秒，1~25），编码 byte10 = 毫秒÷2。</summary>
+        public int DebounceMs { get; set; } = 6;
+
+        /// <summary>编码为 0x05 协议报告（15 字节），校验和覆盖 [3..10]，写入 [11..12]。</summary>
+        public byte[] ToBytes()
+        {
+            var r = new byte[Length];
+            r[0] = ReportId;
+            r[1] = 0x0F;
+            r[2] = 0x01;
+            int mode = Math.Clamp(Mode, 0, 4);
+            r[3] = (byte)(mode | (MoveOff ? 0x80 : 0));
+            int sp = Math.Clamp(BreathSpeed, 4, 8);
+            r[4] = (byte)(9 - sp);
+            int sl = Math.Clamp(SleepMinutes, 1, 60);
+            r[5] = (byte)(((sl << 4) | 0x08) & 0xFF);
+            r[6] = 0x00;
+            r[7] = 0x00;
+            r[8] = 0xFF;
+            // 一级休眠 byte9：固件把 byte9 当 1-based 的 0.5 分档计数，
+            // 实际分钟 = (byte9 - 1) × 0.5，PC 端编码为 分钟×2，+1 修正 off-by-one。
+            int l1 = (int)Math.Clamp(Math.Round(Level1SleepMinutes * 2), 1, 120) + 1;
+            r[9] = (byte)l1;
+            int db = Math.Clamp(DebounceMs, 1, 25);
+            r[10] = (byte)(db / 2);
+            int sum = 0;
+            for (int i = 3; i <= 10; i++) sum += r[i];
+            r[11] = (byte)((sum >> 8) & 0xFF);
+            r[12] = (byte)(sum & 0xFF);
+            r[13] = 0x00;
+            r[14] = 0x00;
+            return r;
+        }
+
+        /// <summary>从 15 字节 0x05 报告解析灯光/电源/去抖配置。</summary>
+        public static LightConfig FromBytes(byte[] r)
+        {
+            var cfg = new LightConfig();
+            if (r.Length < 15) return cfg;
+            cfg.Mode = r[3] & 0x0F;
+            cfg.MoveOff = (r[3] & 0x80) != 0;
+            cfg.BreathSpeed = 9 - r[4];
+            int slEnc = r[5];
+            cfg.SleepMinutes = Math.Clamp((slEnc >> 4) & 0x0F, 1, 60);
+            // byte9 解码：实际分钟 = (byte9 - 1) × 0.5
+            cfg.Level1SleepMinutes = Math.Max(0.5, (r[9] - 1) * 0.5);
+            cfg.DebounceMs = Math.Clamp(r[10] * 2, 1, 25);
+            return cfg;
+        }
     }
 
+    /// <summary>回报率（0x06 报告，9 字节）。
+    /// 依据：HID协议逆向报告.md 3.3 节（已 USBPcap 验证）。
+    /// ⚠️ 必须与 0x0C 唤醒同发，单发会破坏设备状态。</summary>
     public class RateConfig
     {
+        public const int ReportId = 0x06;
+        public const int Length = 9;
+
         /// <summary>回报率（Hz）：125 / 250 / 500 / 1000。</summary>
         public int Hz { get; set; } = 500;
+
+        /// <summary>编码为 0x06 协议报告（9 字节），无校验和。</summary>
+        public byte[] ToBytes()
+        {
+            var r = new byte[Length];
+            r[0] = ReportId;
+            r[1] = 0x09;
+            r[2] = 0x01;
+            int idx = 1000 / Hz;   // 125→8, 250→4, 500→2, 1000→1
+            r[3] = (byte)idx;
+            r[4] = (byte)(0xFF - idx);
+            return r;
+        }
     }
 
     /// <summary>
@@ -381,40 +453,29 @@ namespace DeluxDriver
         // 0x04 编解码见上方 DpiConfig.ToBytes()/FromBytes()（实机验证版布局，勿用旧式子命令假设）。
 
         // ---------- 灯光 + 电源（0x05） ----------
-        /// <summary>编码灯光/电源/去抖为 0x05 报告（整报告，一次写全）。</summary>
+        /// <summary>编码灯光/电源/去抖为 0x05 Feature Report（64 字节，补零到 REPORT_LEN）。</summary>
         public static byte[] EncodeLight(LightConfig cfg)
         {
+            // 协议布局（15 字节）由 cfg.ToBytes() 生成，此处包装为 64 字节 Feature Report。
+            var proto = cfg.ToBytes();
             var buf = new byte[ProtocolConsts.REPORT_LEN];
-            buf[0] = ProtocolConsts.CMD_LIGHT;
-            buf[3] = 0x01; // 子命令：灯光设置
-            buf[4] = ProtocolConsts.DEVICE_TYPE;
-            buf[5] = ProtocolConsts.DEVICE_SEQ;
-            buf[7] = cfg.Mode;             // 灯光模式
-            buf[8] = cfg.MoveOff ? (byte)1 : (byte)0; // 移动时关灯
-            buf[9] = (byte)cfg.BreathSpeed; // 呼吸速度
-            // 电源管理（byte5/byte9 在报告尾部，按 Wiki：电源区字节）
-            buf[36] = (byte)cfg.SleepMinutes;           // 睡眠（分钟）
-            buf[40] = (byte)(cfg.Level1SleepMinutes * 2); // 一级休眠（半分钟单位）
-            // 去抖（byte3 电源区的去抖字段，按 Wiki：去抖 1..25ms）
-            buf[43] = (byte)cfg.DebounceMs;
-            Checksum.Fill(buf, ProtocolConsts.LIGHT_CHECKSUM_FROM, ProtocolConsts.LIGHT_CHECKSUM_TO);
+            Array.Copy(proto, buf, Math.Min(proto.Length, buf.Length));
             return buf;
         }
 
         // ---------- 回报率（0x06） ----------
-        /// <summary>编码回报率为 0x06 报告（idx = 1000/Hz）。</summary>
-        public static byte[] EncodeRate(int hz)
+        /// <summary>编码回报率为 0x06 Feature Report（64 字节，补零到 REPORT_LEN）。</summary>
+        public static byte[] EncodeRate(RateConfig cfg)
         {
+            // 协议布局（9 字节）由 cfg.ToBytes() 生成，此处包装为 64 字节 Feature Report。
+            var proto = cfg.ToBytes();
             var buf = new byte[ProtocolConsts.REPORT_LEN];
-            buf[0] = ProtocolConsts.CMD_RATE;
-            buf[3] = 0x01;
-            buf[4] = ProtocolConsts.DEVICE_TYPE;
-            buf[5] = ProtocolConsts.DEVICE_SEQ;
-            int idx = 1000 / hz; // 125→8, 250→4, 500→2, 1000→1
-            buf[6] = (byte)idx;
-            Checksum.Fill(buf, 3, 9);
+            Array.Copy(proto, buf, Math.Min(proto.Length, buf.Length));
             return buf;
         }
+
+        /// <summary>独立编码回报率（兼容旧接口：直接传 Hz 值）。</summary>
+        public static byte[] EncodeRate(int hz) => EncodeRate(new RateConfig { Hz = hz });
 
         // ---------- 按键映射（0x08，整表覆写） ----------
         // 0x08 编解码见上方 ButtonConfig.ToBytes()/FromBytes()（实机验证版布局，勿用旧式子命令假设）。
@@ -449,6 +510,139 @@ namespace DeluxDriver
     }
 
     #endregion
+
+    // ===== Profile 配置快照（纯软件层，设备无槽位）=====
+
+    /// <summary>单套 Profile 的配置快照：DPI + 灯光 + 回报率 + 按键 + 宏。
+    /// 依据：三阶段计划文档 Phase 7 功能清单。</summary>
+    public class ProfileData
+    {
+        // DPI（5 档）
+        public int[] DpiValues { get; set; } = { 800, 1200, 1600, 2400, 4000 };
+        public bool[] DpiEnabled { get; set; } = { true, true, true, true, true };
+        public int ActiveLevel { get; set; } = 1;
+
+        // 灯光 + 去抖（共用 0x05 报告）
+        public int LightMode { get; set; } = 3;
+        public bool LightMoveOff { get; set; }
+        public int LightSpeed { get; set; } = 6;
+        public int DebounceMs { get; set; } = 6;
+        public int SleepMinutes { get; set; } = 10;
+        public double Level1SleepMinutes { get; set; } = 0.5;
+
+        // 回报率
+        public int RateHz { get; set; } = 500;
+
+        // 按键映射（18 entry × 3 byte）——序列化时转 int[][] 避免 byte[][] JSON 困难
+        public int[][] ButtonEntries { get; set; } = DefaultButtonEntries();
+
+        // 宏列表
+        public List<MacroConfig> Macros { get; set; } = new();
+
+        /// <summary>出厂默认按键表（与 ButtonConfig.InitEntries() 一致）。</summary>
+        public static int[][] DefaultButtonEntries()
+        {
+            var def = ButtonConfig.InitEntries();
+            var result = new int[18][];
+            for (int i = 0; i < 18; i++)
+                result[i] = new[] { (int)def[i][0], (int)def[i][1], (int)def[i][2] };
+            return result;
+        }
+
+        /// <summary>深拷贝（切换前快照 / 回滚用）。</summary>
+        public ProfileData Clone()
+        {
+            return new ProfileData
+            {
+                DpiValues = (int[])DpiValues.Clone(),
+                DpiEnabled = (bool[])DpiEnabled.Clone(),
+                ActiveLevel = ActiveLevel,
+                LightMode = LightMode,
+                LightMoveOff = LightMoveOff,
+                LightSpeed = LightSpeed,
+                DebounceMs = DebounceMs,
+                SleepMinutes = SleepMinutes,
+                Level1SleepMinutes = Level1SleepMinutes,
+                RateHz = RateHz,
+                ButtonEntries = ButtonEntries.Select(e => (int[])e.Clone()).ToArray(),
+                Macros = Macros.Select(m => new MacroConfig
+                {
+                    Id = m.Id, Name = m.Name, Method = m.Method,
+                    LoopCount = m.LoopCount,
+                    Actions = m.Actions.Select(a => new MacroAction
+                    {
+                        Code = a.Code, Press = a.Press, DelayMs = a.DelayMs
+                    }).ToList(),
+                }).ToList(),
+            };
+        }
+    }
+
+    /// <summary>Profile 列表条目（UI 绑定用；已被 SlotEntry 取代，保留作基类复用 Name/Data）。</summary>
+    public class ProfileEntry : ObservableObject
+    {
+        private string _name = "";
+        public string Name { get => _name; set => SetProperty(ref _name, value); }
+
+        public ProfileData Data { get; set; } = new();
+
+        /// <summary>摘要文案（右侧卡片展示）。</summary>
+        public string Summary => $"DPI: {string.Join("/", Data.DpiValues.Take(5))} · 回报率: {Data.RateHz}Hz";
+    }
+
+    /// <summary>本地配置槽位（UI 绑定用）：一套可命名的设备配置快照 + 激活状态 + 最后修改时间。
+    /// 继承 ProfileEntry 复用 Name/Data/SetProperty；新增 Id / LastModified / IsActive。
+    /// 依据：三阶段计划文档 Phase 7（重写为「本地配置」，语义见 AppViewModel）。
+    /// 设备无配置槽位，Profile 为纯软件层（AGENTS.md §3.6）。</summary>
+    public class SlotEntry : ProfileEntry
+    {
+        private int _id;
+        public int Id { get => _id; set => SetProperty(ref _id, value); }
+
+        private DateTime _lastModified;
+        public DateTime LastModified { get => _lastModified; set => SetProperty(ref _lastModified, value); }
+
+        private bool _isActive;
+        public bool IsActive { get => _isActive; set => SetProperty(ref _isActive, value); }
+
+        /// <summary>是否可删除：前 4 个槽为排版基准（撑开列表布局）不可删，第 5 个起为动态槽可删。
+        /// 与 AppViewModel.DeleteSlot 守卫、CanDeleteSlot 同步。Id 为 init 不再变更，无需 INPC。</summary>
+        public bool IsDeletable => Id >= 5;
+
+        /// <summary>卡片副标题：活跃档位 · 回报率 · 灯光模式（只读展示用）。</summary>
+        public string CardSummary => $"{Data.ActiveLevel} 档 · {Data.RateHz}Hz · {LightModeName(Data.LightMode)}";
+
+        /// <summary>「多久之前」文案，用于卡片底部。</summary>
+        public string LastModifiedText => FormatLastModified(LastModified);
+
+        private static string LightModeName(int mode) => mode switch
+        {
+            0 => "关闭",
+            1 => "呼吸DPI",
+            2 => "常亮DPI",
+            3 => "循环呼吸",
+            4 => "霓虹",
+            _ => "未知",
+        };
+
+        private static string FormatLastModified(DateTime t)
+        {
+            if (t == default) return "未修改";
+            var span = DateTime.Now - t;
+            if (span.TotalMinutes < 1) return "刚刚";
+            if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} 分钟前";
+            if (span.TotalHours < 24) return $"{(int)span.TotalHours} 小时前";
+            return t.ToString("MM-dd HH:mm");
+        }
+
+        /// <summary>外部（如 AppViewModel）更新快照后调用，刷新卡片展示属性的通知。
+        /// Data 为引用类型且其字段无 INPC，故需显式通知 CardSummary 已变更。</summary>
+        public void RefreshDisplay()
+        {
+           OnPropertyChanged(nameof(CardSummary));
+           OnPropertyChanged(nameof(LastModifiedText));
+        }
+    }
 }
 
 // 独立的轻量 IO 选项容器（HidComm 需要）
