@@ -83,7 +83,7 @@
     </Page.Resources>
 
     <Grid>
-        <Border Style="{DynamicResource CardStyle}" Background="Transparent" Padding="0" ClipToBounds="True">
+        <Border Style="{DynamicResource CardStyle}" Padding="0" ClipToBounds="True">
             <!-- 本页不设页面标题/副标题（用户规格：让位给下方内容；其余页面保留） -->
             <!-- 顶层叠放：空态与两列内容互斥显示（无宏→居中空态，有宏→正常两栏） -->
             <Grid>
@@ -200,12 +200,12 @@
                                                 <TextBlock Text="{Binding Name}" FontSize="{DynamicResource BodyTextBlockFontSize}" FontWeight="SemiBold"
                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                                                 <!-- hover 才显示删除（WPF-UI 标准：Opacity 触发器） -->
-                                                <Button Grid.Column="1" Content="删除" Padding="{DynamicResource PaddingX8Y3}"
+                                                <Button Grid.Column="1" Content="删除"
                                                         Command="{Binding DataContext.DeleteMacroCmd, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding Id}"
                                                         HorizontalAlignment="Center" VerticalAlignment="Center">
                                                     <Button.Style>
-                                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Style TargetType="Button" BasedOn="{StaticResource DestructiveTextButtonStyle}">
                                                             <Setter Property="Opacity" Value="0" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
@@ -377,11 +377,19 @@
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="110" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBox Text="{Binding KeyName, Mode=OneWay}" FontSize="{DynamicResource BodyTextBlockFontSize}"
-                                                                 VerticalAlignment="Center" Padding="{DynamicResource PaddingX6Y3}" MaxLength="12"
-                                                                 Cursor="IBeam"
-                                                                 KeyDown="KeyName_KeyDown"
-                                                                 LostFocus="KeyName_LostFocus" />
+                                                        <Button Grid.Column="0" Style="{DynamicResource KeyCaptureButtonStyle}"
+                                                                 Click="CaptureKey_Click"
+                                                                 ToolTip="点击后按下想要按键（Esc 取消）">
+                                                            <Grid>
+                                                                <TextBlock Text="{Binding KeyName}" FontSize="{DynamicResource BodyTextBlockFontSize}"
+                                                                           VerticalAlignment="Center" TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                           Visibility="{Binding IsCapturing, Converter={StaticResource BoolInverseToVis}}" />
+                                                                <TextBlock Text="请按键…" FontSize="{DynamicResource BodyTextBlockFontSize}"
+                                                                           VerticalAlignment="Center" TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                           Visibility="{Binding IsCapturing, Converter={StaticResource BoolToVis}}" />
+                                                            </Grid>
+                                                        </Button>
                                                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                                             <RadioButton Content="按下" Margin="0,0,4,0"
                                                                          Style="{DynamicResource FuncOptionRadioStyle}"

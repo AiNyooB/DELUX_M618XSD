@@ -58,31 +58,8 @@ public partial class MacroPage : Page
     private void Toggle_Click(object sender, RoutedEventArgs e) => Vm.TogglePress(IndexOf(sender, Vm));
     private void Delete_Click(object sender, RoutedEventArgs e) => Vm.DeleteAction(IndexOf(sender, Vm));
 
-    /// <summary>键值编辑框：Enter 确认修改并移走焦点。</summary>
-    private void KeyName_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        CommitKeyNameEdit(sender);
-        // 将焦点移到下一个控件（延迟框），方便连续编辑
-        if (sender is TextBox tb && tb.Parent is Grid grid && grid.Children.Count > 2 && grid.Children[2] is TextBox delayBox)
-            delayBox.Focus();
-    }
-
-    /// <summary>键值编辑框：失焦时提交修改。</summary>
-    private void KeyName_LostFocus(object sender, RoutedEventArgs e) => CommitKeyNameEdit(sender);
-
-    private void CommitKeyNameEdit(object sender)
-    {
-        if (sender is not TextBox tb) return;
-        int idx = IndexOf(sender, Vm);
-        if (idx < 0) return;
-        var item = Vm.EditingActions[idx];
-        byte? code = InputRecorder.NameToHid(tb.Text);
-        if (code.HasValue)
-            item.SetCode(code.Value);
-        else
-            tb.Text = item.KeyName; // 输入无效，还原
-    }
+    /// <summary>键值捕获框：点击进入「等待按键」态，下一个按键/鼠标点击回写该动作（替代手输键名）。</summary>
+    private void CaptureKey_Click(object sender, RoutedEventArgs e) => Vm.CaptureKeyEdit(IndexOf(sender, Vm));
 
     /// <summary>新建快捷指令：左栏常驻后「＋新建」在编辑中也可点，故先就未保存修改确认，再交由 VM 建草稿。</summary>
     private void NewMacro_Click(object sender, RoutedEventArgs e)

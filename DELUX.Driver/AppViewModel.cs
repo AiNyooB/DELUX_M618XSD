@@ -811,16 +811,23 @@ public class AppViewModel : ObservableObject, IDisposable
 
         /// <summary>延迟被修改（VM 订阅此事件以标记「未保存」——延迟框直改共享 Action，绕过了 MarkMacroDirty）。</summary>
         public event Action? DelayChanged;
+        /// <summary>按键码被修改（捕获回写走 SetCode 直改共享 Action，需经事件标记「未保存」，同 DelayChanged）。</summary>
+        public event Action? KeyChanged;
 
         public string KeyName => InputRecorder.KeyNameOf(Action.Code);
 
-        /// <summary>更新按键码并刷新显示名（供 UI 编辑键值回写）。</summary>
+        /// <summary>更新按键码并刷新显示名（供「按键捕获」回写）。</summary>
         public void SetCode(byte newCode)
         {
             if (Action.Code == newCode) return;
             Action.Code = newCode;
             OnPropertyChanged(nameof(KeyName));
+            KeyChanged?.Invoke();
         }
+
+        /// <summary>本行是否处于「按键捕获」态（点击后等待按键回写，显示「请按键…」）。</summary>
+        private bool _isCapturing;
+        public bool IsCapturing { get => _isCapturing; set => SetProperty(ref _isCapturing, value); }
 
         public bool Press
         {
@@ -1375,8 +1382,9 @@ public class AppViewModel : ObservableObject, IDisposable
             foreach (var a in _editingMacro.Config.Actions)
             {
                 var item = new MacroActionItem { Action = a };
-                // 延迟框直改共享 Action 对象（见 MacroActionItem.DelayMs），必须经事件标记「未保存」
+                // 延迟框/按键捕获直改共享 Action 对象（见 MacroActionItem.DelayMs/SetCode），必须经事件标记「未保存」
                 item.DelayChanged += () => MarkMacroDirty();
+                item.KeyChanged += () => MarkMacroDirty();
                 EditingActions.Add(item);
             }
         SelectedActionIndex = -1;
@@ -1518,6 +1526,10 @@ public class AppViewModel : ObservableObject, IDisposable
     public bool IsCapturingMouse { get => _capturingMouse; set { if (SetProperty(ref _capturingMouse, value)) OnPropertyChanged(nameof(InsertMouseButtonText)); } }
     public string InsertMouseButtonText => IsCapturingMouse ? "请按下鼠标按键…（Esc 取消）" : "插入鼠标按键";
 
+    /// <summary>「捕获修改已有动作」模式：等待下一个键盘按键回写该下标的动作（-1 = 未处于该模式）。
+    /// 与 IsCapturingKey/Mouse（插入新动作）互斥；同一时刻只捕获一行。</summary>
+    private int _captureEditIndex = -1;
+
     /// <summary>录制开关（录制中再次点击 = 停止）。</summary>
     public void ToggleRecord()
     {
@@ -1532,6 +1544,7 @@ public class AppViewModel : ObservableObject, IDisposable
         if (OfficialDriverRunning) { ShowToast("检测到官方驱动运行中。请完全退出 Mouse.exe 后重试。"); return; }
         IsCapturingKey = false;  // 取消残留的「插入按键」捕获态
         IsCapturingMouse = false; // 取消残留的「插入鼠标按键」捕获态
+        if (_captureEditIndex >= 0) CancelEditCapture(); // 取消残留的「捕获修改」态
         _lastKeyTime = default;
         _recordingDownKeys.Clear();
         _recorder.Install();
@@ -1559,6 +1572,7 @@ public class AppViewModel : ObservableObject, IDisposable
             ShowToast("录制中无法插入按键，请先停止录制");
             return;
         }
+        if (_captureEditIndex >= 0) CancelEditCapture(); // 与「捕获修改」互斥
         IsCapturingMouse = false;
         IsCapturingKey = true;
         _recorder.Install();
@@ -1573,14 +1587,43 @@ public class AppViewModel : ObservableObject, IDisposable
             ShowToast("录制中无法插入鼠标按键，请先停止录制");
             return;
         }
+        if (_captureEditIndex >= 0) CancelEditCapture(); // 与「捕获修改」互斥
         IsCapturingKey = false;
         IsCapturingMouse = true;
         _recorder.Install();
     }
 
+    /// <summary>按键捕获（改已有动作）：点击行内按键按钮后进入「请按键…」态，下一个键盘按键回写该动作
+    /// （Esc 取消；不捕获鼠标点击，鼠标另有「插入鼠标按键」）。一次只捕获一行。</summary>
+    public void CaptureKeyEdit(int index)
+    {
+        if (_editingMacro == null) return;
+        if (index < 0 || index >= EditingActions.Count) return;
+        if (IsRecording)
+        {
+            ShowToast("录制中无法修改按键，请先停止录制");
+            return;
+        }
+        IsCapturingKey = false;   // 与「插入」捕获态互斥
+        IsCapturingMouse = false;
+        if (_captureEditIndex >= 0) CancelEditCapture(); // 已在捕获：先清旧态（含卸载钩子）
+        _captureEditIndex = index;
+        EditingActions[index].IsCapturing = true;
+        _recorder.Install();
+    }
+
+    /// <summary>退出「捕获修改」模式：清捕获态并卸载钩子（捕获成功/取消/切换目标/离开页面均走这里）。</summary>
+    private void CancelEditCapture()
+    {
+        _captureEditIndex = -1;
+        foreach (var item in EditingActions) item.IsCapturing = false;
+        _recorder.Uninstall();
+    }
+
     /// <summary>离开快捷指令页时兜底卸载钩子（防导航后常驻）。</summary>
     public void CancelCapture()
     {
+        if (_captureEditIndex >= 0) CancelEditCapture();
         _recorder.Uninstall();
         IsRecording = false;
         IsCapturingKey = false;
@@ -1590,6 +1633,18 @@ public class AppViewModel : ObservableObject, IDisposable
 
     private void OnKeyEvent(byte hid, bool down)
     {
+        // 「捕获修改」态：Esc 取消；下一个键盘按键（按下）回写该动作并退出；抬起忽略
+        if (_captureEditIndex >= 0)
+        {
+            if (hid == 41) { CancelEditCapture(); return; }
+            if (down)
+            {
+                int idx = _captureEditIndex;
+                CancelEditCapture();
+                if (idx < EditingActions.Count) EditingActions[idx].SetCode(hid);
+            }
+            return;
+        }
         // 任一「插入」捕获态下 Esc（HID 41）都表示取消；录制态不再用 Esc 结束，Esc 作为普通按键入列
         if (hid == 41 && (IsCapturingKey || IsCapturingMouse))
         {
@@ -1628,6 +1683,8 @@ public class AppViewModel : ObservableObject, IDisposable
 
     private void OnMouseEvent(byte code, bool down)
     {
+        // 「捕获修改」态只等键盘按键：忽略鼠标点击（Esc 取消在 OnKeyEvent 处理）
+        if (_captureEditIndex >= 0) return;
         // 鼠标捕获态：下一个鼠标按键（不含 Esc，Esc 已在 OnKeyEvent 处理）插入为「按下」动作
         if (IsCapturingMouse && down)
         {
@@ -1656,10 +1713,11 @@ public class AppViewModel : ObservableObject, IDisposable
         _lastKeyTime = now;
     }
 
-    // ---- 宏保存：仅本地持久化，不写设备 ----
-    // 官方驱动同样不支持独立宏写入（无 0x09 直写入口）；宏经「改键设置」把按键绑定为宏
-    // （0x08 entry[0]=0x12、entry[2]=槽位）后由设备按绑定关系生效。故宏页绝不 WriteFeature
-    // 写设备、也不要求连接设备；「保存」= 落本地 macros.json + 分配槽位。
+    // ---- 宏保存：本地持久化为主，已绑定按键的宏同步下发设备 ----
+    // 官方驱动不支持独立宏写入（无 0x09 直写入口）；宏经「改键设置」把按键绑定为宏
+    // （0x08 entry[0]=0x12、entry[2]=槽位）后由设备按绑定关系生效。故未绑定宏的「保存」仅落本地
+    // macros.json + 分配槽位、不写设备；**已绑定按键的宏保存后需立即下发 0x09 内容**（见
+    // SaveMacros 结尾，修复绑定不变时 0x09 永不下发的历史缺陷）。
 
     private void ScheduleMacroSave()
     {
@@ -1668,8 +1726,8 @@ public class AppViewModel : ObservableObject, IDisposable
         SaveStatusText = "未保存";
     }
 
-    /// <summary>手动保存入口（「保存」按钮调用）：仅本地持久化宏数据（不写设备）。
-    /// 宏生效依赖改键页将按键绑定为宏（0x08 引用槽位），本方法不触碰设备。</summary>
+    /// <summary>手动保存入口（「保存」按钮调用）：本地持久化宏数据；若该宏已绑定按键，则同步下发
+    /// 最新内容到设备（0x0C→0x08→0x09×3，见 PushBoundMacroToDevice）。</summary>
     public void SaveMacro() => SaveMacros();
 
     /// <summary>深拷贝宏配置（快照/回滚用：动作对象全部分离，后续编辑不污染快照）。</summary>
@@ -1725,7 +1783,38 @@ public class AppViewModel : ObservableObject, IDisposable
         PersistMacros();
         SaveStatusText = "";   // 清空未保存标记（反馈用 Toast，不常驻"正在保存"）
         _editingSnapshot = CloneConfig(m.Config); // 保存成功 → 丢弃回滚目标刷新为本次保存的状态
-        ShowToast("已保存到本机，在「按键设置」绑定到按键后即可生效");
+
+        // 已绑定按键的宏：本地保存后把最新内容立即下发设备。历史缺陷修复——绑定不变时按键页
+        // 0x08 保存被 no-op 守卫跳过，0x09 内容永不下发，设备一直播放旧内容。
+        if (IsMacroBound(m.Id))
+        {
+            if (!IsConnected)
+            {
+                ShowToast("已保存到本机；设备未连接，重新连接后再次保存本指令即可更新到设备");
+            }
+            else if (OfficialDriverRunning)
+            {
+                ShowToast("已保存到本机；检测到官方驱动运行中，写入已拦截。请完全退出 Mouse.exe 后重试。");
+            }
+            else
+            {
+                SaveStatusText = "正在保存…";
+                if (PushBoundMacroToDevice())
+                {
+                    SaveStatusText = "已保存 ✓";
+                    ShowToast($"已保存并更新到设备，「{m.Name}」即按新内容生效");
+                }
+                else
+                {
+                    SaveStatusText = "已保存 ✓";
+                    ShowToast($"已保存到本机，但更新设备失败：{_hid.LastErrorMessage}。请确认已退出官方驱动后重试。");
+                }
+            }
+        }
+        else
+        {
+            ShowToast("已保存到本机，在「按键设置」绑定到按键后即可生效");
+        }
     }
 
     /// <summary>设置宏命令（参数 = 宏 ID）。</summary>
@@ -2038,9 +2127,13 @@ public class AppViewModel : ObservableObject, IDisposable
         SaveStatusText = "正在保存…";
         if (_hid.Wake() && _hid.WriteFeature(BtnCfg.ToBytes()))
         {
+            // 0x08 按键映射成功后补发 0x09 宏内容（官方时序：0x08 → 0x09×3，见 AGENTSK 2.3d）。
+            // 此前缺失：绑定宏只改 0x08，槽位内容从未下发，设备一直播放槽位旧内容（历史缺陷）。
+            bool macrosOk = SendMacroDataIfAny();
             SaveButtonsTable(); // 设备写成功后持久化全表副本（本地维护，见 AGENTSK 6 节）
             SaveStatusText = "已保存 ✓";
-            ShowToast("已保存按键映射");
+            ShowToast(macrosOk ? "已保存按键映射"
+                               : "按键映射已保存，但快捷指令内容写入失败：请确认已退出官方驱动后重试。");
         }
         else
         {
@@ -2083,6 +2176,52 @@ public class AppViewModel : ObservableObject, IDisposable
             System.IO.File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(BtnCfg.Entries));
         }
         catch { /* 写失败不影响本次使用 */ }
+    }
+
+    /// <summary>扫描 0x08 按键表中所有标记为「宏」的条目，对每个被引用的宏槽位，从本地宏列表取内容发
+    /// 0x09×3 分块到设备（官方时序：0x08 → 0x09 间隔 0.2s、分块间 0.2s，见 AGENTSK 2.3d）。
+    /// 参考 Phase 2 MouseDriverClient/MainViewModel.cs SendMacroDataIfAny()。
+    /// 返回 true 表示无待发槽位或全部写入成功；任一分块失败返回 false（调用方须反馈，禁止静默吞）。</summary>
+    private bool SendMacroDataIfAny()
+    {
+        var macroIds = new HashSet<int>();
+        foreach (var ent in BtnCfg.Entries)
+            if (ent[0] == ButtonConfig.FuncCode.Macro && ent[2] >= 1 && ent[2] <= MaxMacroSlots)
+                macroIds.Add(ent[2]);
+        if (macroIds.Count == 0) return true;
+
+        foreach (var mid in macroIds)
+        {
+            var macro = Macros.FirstOrDefault(m => m.Id == mid);
+            if (macro == null || macro.Config.Actions.Count == 0) continue;
+            Thread.Sleep(200); // 0x08 → 0x09 间隔（AGENTSK 2.3d）
+            foreach (var chunk in macro.Config.BuildMacroChunks())
+            {
+                if (!_hid.WriteFeature(chunk)) return false;
+                Thread.Sleep(200); // 0x09 分块之间间隔（AGENTSK 2.3d）
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// 把「已绑定按键的宏」最新内容立即刷新到设备（官方验证时序：0x0C 唤醒 → 0x08 按键表 → 0x09×3）。
+    /// 修复历史缺陷：保存已绑定宏时仅落本地，0x08 绑定无变化不触发按键页保存，0x09 永不下发，设备播放旧内容。
+    /// 与 SaveButtons 同在线程执行（防抖保存同样跑在 UI 线程），避免并发写设备。
+    /// </summary>
+    private bool PushBoundMacroToDevice()
+    {
+        if (_hid.Wake())
+        {
+            Thread.Sleep(200); // 0x0C → 0x08 间隔（AGENTSK 2.3d）
+            if (_hid.WriteFeature(BtnCfg.ToBytes()))
+            {
+                SaveButtonsTable(); // 0x08 已写入设备 → 本地全表副本同步（AGENTSK 6 节）
+                Thread.Sleep(200); // 0x08 → 0x09 间隔
+                return SendMacroDataIfAny();
+            }
+        }
+        return false;
     }
 
     #endregion

@@ -31,8 +31,8 @@
                     <TextBlock Text="M618XSD连接失败" Style="{DynamicResource PageTitleTextStyle}"
                                VerticalAlignment="Center" />
                     <Button Content="重试" Command="{Binding ReconnectCmd}"
-                            Style="{DynamicResource AccentButtonStyle}"
-                            Height="28" Padding="10,0" FontSize="{DynamicResource CaptionTextBlockFontSize}"
+                            Style="{DynamicResource PrimaryButtonStyle}"
+                            Padding="{DynamicResource PaddingX12Y6}"
                             VerticalAlignment="Center" Margin="12,0,0,0" />
                 </StackPanel>
                 <TextBlock Text="连接失败" Style="{DynamicResource PageTitleTextStyle}" HorizontalAlignment="Center"
